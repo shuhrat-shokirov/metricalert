@@ -22,7 +22,6 @@ func NewServerApi(server ServerService) *API {
 
 	router := http.NewServeMux()
 
-	router.HandleFunc("/health", h.health)
 	router.HandleFunc("/update/", h.update)
 
 	return &API{
@@ -39,11 +38,6 @@ func (a *API) Run() error {
 
 type handler struct {
 	server ServerService
-}
-
-func (h *handler) health(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
 }
 
 type MetricType string
