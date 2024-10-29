@@ -13,6 +13,7 @@ type Client interface {
 
 type Collector interface {
 	CollectMetrics() []model.Metric
+	ResetCounters()
 }
 
 type Agent struct {
@@ -31,14 +32,15 @@ func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
 	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 
+	poll := time.NewTicker(pollInterval)
+	defer poll.Stop()
+
 	var metrics []model.Metric
 
 	for {
-		// Сбор метрик каждые pollInterval
-		metrics = a.collector.CollectMetrics()
-		time.Sleep(pollInterval) // Ждём перед следующим опросом
-
 		select {
+		case <-poll.C:
+			metrics = a.collector.CollectMetrics()
 		case <-ticker.C:
 			// Отправка метрик на сервер каждые reportInterval
 			for _, metric := range metrics {
@@ -47,6 +49,9 @@ func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
 					log.Println("Error sending metric:", err)
 				}
 			}
+
+			// Сброс счетчиков каждые reportInterval
+			a.collector.ResetCounters()
 		}
 	}
 }

@@ -55,3 +55,8 @@ func (c *Collector) CollectMetrics() []model.Metric {
 
 	return metrics
 }
+
+// ResetCounters сбрасывает счетчики
+func (c *Collector) ResetCounters() {
+	atomic.StoreInt64(&c.pollCount, 0)
+}
