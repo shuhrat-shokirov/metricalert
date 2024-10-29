@@ -27,7 +27,7 @@ func NewServerApi(server ServerService) *API {
 
 	return &API{
 		srv: &http.Server{
-			Addr:    ":8081",
+			Addr:    ":8080",
 			Handler: router,
 		},
 	}
@@ -59,17 +59,20 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 
 	err := h.server.UpdateMetric(metricName, metricType, metricValue)
 	if err != nil {
-		switch {
-		case errors.Is(err, model.ErrorBadRequest):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Is(err, model.ErrorNotFound):
-			w.WriteHeader(http.StatusNotFound)
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		h.handleErr(w, err)
 		return
-
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) handleErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, model.ErrorBadRequest):
+		w.WriteHeader(http.StatusBadRequest)
+	case errors.Is(err, model.ErrorNotFound):
+		w.WriteHeader(http.StatusNotFound)
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }
