@@ -21,7 +21,7 @@ func run() error {
 
 	newApplication := application.NewApplication(repo)
 
-	api := rest.NewServerApi(newApplication)
+	api := rest.NewServerAPI(newApplication)
 
 	return api.Run()
 }

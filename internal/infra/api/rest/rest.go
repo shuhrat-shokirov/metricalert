@@ -16,7 +16,7 @@ type API struct {
 	srv *http.Server
 }
 
-func NewServerApi(server ServerService) *API {
+func NewServerAPI(server ServerService) *API {
 	h := handler{
 		server: server,
 	}
