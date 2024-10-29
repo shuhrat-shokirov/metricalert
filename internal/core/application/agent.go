@@ -28,19 +28,19 @@ func NewAgent(client Client, collector Collector) *Agent {
 }
 
 func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
-	pollTicker := time.NewTicker(pollInterval)
-	reportTicker := time.NewTicker(reportInterval)
-	defer pollTicker.Stop()
-	defer reportTicker.Stop()
+	ticker := time.NewTicker(reportInterval)
+	defer ticker.Stop()
 
 	var metrics []model.Metric
 
 	for {
-		select {
-		case <-pollTicker.C:
-			metrics = a.collector.CollectMetrics()
+		// Сбор метрик каждые pollInterval
+		metrics = a.collector.CollectMetrics()
+		time.Sleep(pollInterval) // Ждём перед следующим опросом
 
-		case <-reportTicker.C:
+		select {
+		case <-ticker.C:
+			// Отправка метрик на сервер каждые reportInterval
 			for _, metric := range metrics {
 				err := a.client.SendMetric(metric.Name, metric.Type, metric.Value)
 				if err != nil {
