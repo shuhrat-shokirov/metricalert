@@ -27,7 +27,7 @@ func NewServerAPI(server ServerService) *API {
 
 	return &API{
 		srv: &http.Server{
-			Addr:    ":8080",
+			Addr:    ":8081",
 			Handler: router,
 		},
 	}
