@@ -9,7 +9,7 @@ import (
 )
 
 func run() error {
-	client := client.NewClient("http://localhost:8081")
+	client := client.NewClient("http://localhost:8080")
 	collector := services.NewCollector()
 
 	agent := application.NewAgent(client, collector)
