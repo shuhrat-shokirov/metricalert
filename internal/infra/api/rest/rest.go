@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+
+	"metricalert/internal/core/model"
 )
 
 type ServerService interface {
@@ -25,7 +27,7 @@ func NewServerApi(server ServerService) *API {
 
 	return &API{
 		srv: &http.Server{
-			Addr:    ":8080",
+			Addr:    ":8081",
 			Handler: router,
 		},
 	}
@@ -38,11 +40,6 @@ func (a *API) Run() error {
 type handler struct {
 	server ServerService
 }
-
-var (
-	badRequestMessage = errors.New("bad request")
-	notFoundMessage   = errors.New("not found")
-)
 
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -61,19 +58,21 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	metricValue := parts[2]
 
 	err := h.server.UpdateMetric(metricName, metricType, metricValue)
-
 	if err != nil {
-		switch {
-		case errors.Is(err, badRequestMessage):
-			w.WriteHeader(http.StatusBadRequest)
-		case errors.Is(err, notFoundMessage):
-			w.WriteHeader(http.StatusNotFound)
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-
+		h.handleErr(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) handleErr(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, model.ErrorBadRequest):
+		w.WriteHeader(http.StatusBadRequest)
+	case errors.Is(err, model.ErrorNotFound):
+		w.WriteHeader(http.StatusNotFound)
+	default:
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }

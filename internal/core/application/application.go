@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"metricalert/internal/core/model"
 )
 
 type Repo interface {
@@ -31,7 +33,7 @@ const (
 
 func (a *Application) UpdateMetric(metricName, metricTypeName, value string) error {
 	if strings.TrimSpace(metricName) == "" {
-		return fmt.Errorf("not found, error: %w", errors.New("empty metric name"))
+		return fmt.Errorf("empty metric name, error: %w", model.ErrorNotFound)
 	}
 
 	switch metricType(metricTypeName) {
@@ -40,17 +42,18 @@ func (a *Application) UpdateMetric(metricName, metricTypeName, value string) err
 	case counterType:
 		return a.updateCounterType(metricName, value)
 	default:
-		return fmt.Errorf("bad request, error: %w", errors.New("unknown metric type"))
+		return fmt.Errorf("unknown metric type, error: %w", model.ErrorBadRequest)
 	}
 }
 
 func (a *Application) updateGaugeType(metricName, metricValue string) error {
-	value, err := strconv.Atoi(metricValue)
+
+	value, err := strconv.ParseFloat(metricValue, 64)
 	if err != nil {
-		return fmt.Errorf("bad request: %w", err)
+		return fmt.Errorf("can't parse value: %w", errors.Join(err, model.ErrorBadRequest))
 	}
 
-	if err = a.repo.UpdateCounter(metricName, int64(value)); err != nil {
+	if err = a.repo.UpdateGauge(metricName, value); err != nil {
 		return fmt.Errorf("can't update counter: %w", err)
 	}
 
@@ -58,12 +61,13 @@ func (a *Application) updateGaugeType(metricName, metricValue string) error {
 }
 
 func (a *Application) updateCounterType(metricName, metricValue string) error {
-	value, err := strconv.ParseFloat(metricValue, 64)
+
+	value, err := strconv.Atoi(metricValue)
 	if err != nil {
-		return fmt.Errorf("bad request: %w", err)
+		return fmt.Errorf("can't parse value: %w", errors.Join(err, model.ErrorBadRequest))
 	}
 
-	if err = a.repo.UpdateGauge(metricName, value); err != nil {
+	if err = a.repo.UpdateCounter(metricName, int64(value)); err != nil {
 		return fmt.Errorf("can't update gauge: %w", err)
 	}
 
