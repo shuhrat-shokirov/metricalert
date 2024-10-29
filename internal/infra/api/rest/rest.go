@@ -1,14 +1,13 @@
 package rest
 
 import (
+	"errors"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
 type ServerService interface {
-	UpdateGauge(name string, value float64)
-	UpdateCounter(name string, value int64)
+	UpdateMetric(metricName, metricType, value string) error
 }
 
 type API struct {
@@ -40,11 +39,9 @@ type handler struct {
 	server ServerService
 }
 
-type MetricType string
-
-const (
-	GaugeType   MetricType = "gauge"
-	CounterType MetricType = "counter"
+var (
+	badRequestMessage = errors.New("bad request")
+	notFoundMessage   = errors.New("not found")
 )
 
 func (h *handler) update(w http.ResponseWriter, r *http.Request) {
@@ -63,30 +60,18 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 	metricName := parts[1]
 	metricValue := parts[2]
 
-	if metricName == "" {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
+	err := h.server.UpdateMetric(metricName, metricType, metricValue)
 
-	switch MetricType(metricType) {
-	case CounterType:
-		value, err := strconv.Atoi(metricValue)
-		if err != nil {
+	if err != nil {
+		switch {
+		case errors.Is(err, badRequestMessage):
 			w.WriteHeader(http.StatusBadRequest)
-			return
+		case errors.Is(err, notFoundMessage):
+			w.WriteHeader(http.StatusNotFound)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 
-		h.server.UpdateCounter(metricName, int64(value))
-	case GaugeType:
-		value, err := strconv.ParseFloat(metricValue, 64)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		h.server.UpdateGauge(metricName, value)
-	default:
-		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 

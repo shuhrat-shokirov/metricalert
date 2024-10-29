@@ -1,6 +1,8 @@
 package main
 
 import (
+	"metricalert/internal/core/application"
+	"metricalert/internal/core/services"
 	"metricalert/internal/infra/api/rest"
 	"metricalert/internal/infra/store"
 	"metricalert/internal/infra/store/memory"
@@ -15,7 +17,11 @@ func run() error {
 		return err
 	}
 
-	api := rest.NewServerApi(newStore)
+	repo := services.NewRepo(newStore)
+
+	newApplication := application.NewApplication(repo)
+
+	api := rest.NewServerApi(newApplication)
 
 	return api.Run()
 }
