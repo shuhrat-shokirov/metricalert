@@ -59,20 +59,17 @@ func (h *handler) update(w http.ResponseWriter, r *http.Request) {
 
 	err := h.server.UpdateMetric(metricName, metricType, metricValue)
 	if err != nil {
-		h.handleErr(w, err)
+		switch {
+		case errors.Is(err, model.ErrorBadRequest):
+			w.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, model.ErrorNotFound):
+			w.WriteHeader(http.StatusNotFound)
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
+
 	}
 
 	w.WriteHeader(http.StatusOK)
-}
-
-func (h *handler) handleErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, model.ErrorBadRequest):
-		w.WriteHeader(http.StatusBadRequest)
-	case errors.Is(err, model.ErrorNotFound):
-		w.WriteHeader(http.StatusNotFound)
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
-	}
 }
