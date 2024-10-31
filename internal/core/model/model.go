@@ -12,3 +12,8 @@ type Metric struct {
 	Value float64
 	Type  string
 }
+
+type MetricData struct {
+	Name  string
+	Value string
+}

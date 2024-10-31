@@ -3,13 +3,17 @@ package rest
 import (
 	"errors"
 	"net/http"
-	"strings"
+	"text/template"
+
+	"github.com/gin-gonic/gin"
 
 	"metricalert/internal/core/model"
 )
 
 type ServerService interface {
 	UpdateMetric(metricName, metricType, value string) error
+	GetMetric(metricName, metricType string) (string, error)
+	GetMetrics() []model.MetricData
 }
 
 type API struct {
@@ -21,13 +25,19 @@ func NewServerAPI(server ServerService) *API {
 		server: server,
 	}
 
-	router := http.NewServeMux()
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(gin.Logger())
 
-	router.HandleFunc("/update/", h.update)
+	router.POST("/update/:type/:name/:value", h.update)
+
+	router.GET("/value/:type/:name", h.get)
+
+	router.GET("/", h.metrics)
 
 	return &API{
 		srv: &http.Server{
-			Addr:    ":8080",
+			Addr:    ":8081",
 			Handler: router,
 		},
 	}
@@ -41,38 +51,94 @@ type handler struct {
 	server ServerService
 }
 
-func (h *handler) update(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
+func (h *handler) update(ginCtx *gin.Context) {
 
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/")
-	if len(parts) != 3 {
-		http.Error(w, "Invalid request format", http.StatusNotFound)
-		return
-	}
-
-	metricType := parts[0]
-	metricName := parts[1]
-	metricValue := parts[2]
+	var (
+		metricType  = ginCtx.Param("type")
+		metricName  = ginCtx.Param("name")
+		metricValue = ginCtx.Param("value")
+	)
 
 	err := h.server.UpdateMetric(metricName, metricType, metricValue)
 	if err != nil {
-		h.handleErr(w, err)
+		switch {
+		case errors.Is(err, model.ErrorBadRequest):
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, model.ErrorNotFound):
+			ginCtx.Writer.WriteHeader(http.StatusNotFound)
+		default:
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	ginCtx.Writer.WriteHeader(http.StatusOK)
 }
 
-func (h *handler) handleErr(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, model.ErrorBadRequest):
-		w.WriteHeader(http.StatusBadRequest)
-	case errors.Is(err, model.ErrorNotFound):
-		w.WriteHeader(http.StatusNotFound)
-	default:
-		w.WriteHeader(http.StatusInternalServerError)
+func (h *handler) get(ginCtx *gin.Context) {
+
+	var (
+		metricType = ginCtx.Param("type")
+		metricName = ginCtx.Param("name")
+	)
+
+	value, err := h.server.GetMetric(metricName, metricType)
+	if err != nil {
+		switch {
+		case errors.Is(err, model.ErrorBadRequest):
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, model.ErrorNotFound):
+			ginCtx.Writer.WriteHeader(http.StatusNotFound)
+		default:
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	ginCtx.Writer.WriteHeader(http.StatusOK)
+	_, err = ginCtx.Writer.Write([]byte(value))
+	if err != nil {
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 }
+
+func (h *handler) metrics(ginCtx *gin.Context) {
+	ginCtx.Writer.WriteHeader(http.StatusOK)
+
+	metrics := h.server.GetMetrics()
+	ginCtx.Writer.Header().Set("Content-Type", "text/html")
+
+	tmpl := template.Must(template.New("").Parse(metricsTemplate))
+
+	err := tmpl.Execute(ginCtx.Writer, metrics)
+	if err != nil {
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+const metricsTemplate = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Metrics</title>
+</head>
+<body>
+    <h1>Metrics</h1>
+    <table border="1">
+        <tr>
+            <th>Name</th>
+            <th>Value</th>
+        </tr>
+        {{ range . }}
+        <tr>
+            <td>{{ .Name }}</td>
+            <td>{{ .Value }}</td>
+        </tr>
+        {{ end }}
+    </table>
+</body>
+</html>
+`

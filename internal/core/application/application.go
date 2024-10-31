@@ -12,6 +12,9 @@ import (
 type Repo interface {
 	UpdateGauge(name string, value float64) error
 	UpdateCounter(name string, value int64) error
+	GetGaugeList() map[string]string
+	GetGauge(name string) (float64, error)
+	GetCounter(name string) (int64, error)
 }
 
 type Application struct {
@@ -72,4 +75,39 @@ func (a *Application) updateCounterType(metricName, metricValue string) error {
 	}
 
 	return nil
+}
+
+func (a *Application) GetMetric(metricName, metricType string) (string, error) {
+	switch metricType {
+	case "gauge":
+		gauge, err := a.repo.GetGauge(metricName)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf("%f", gauge), nil
+	case "counter":
+		counter, err := a.repo.GetCounter(metricName)
+		if err != nil {
+			return "", err
+		}
+
+		return fmt.Sprintf("%d", counter), nil
+	default:
+		return "", fmt.Errorf("unknown metric type: %w", model.ErrorBadRequest)
+	}
+}
+
+func (a *Application) GetMetrics() []model.MetricData {
+	gaugeList := a.repo.GetGaugeList()
+
+	var metrics []model.MetricData
+	for name, value := range gaugeList {
+		metrics = append(metrics, model.MetricData{
+			Name:  name,
+			Value: value,
+		})
+	}
+
+	return metrics
 }
