@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"metricalert/internal/core/model"
+	"metricalert/internal/server/core/model"
 )
 
 type Client interface {
@@ -21,7 +21,7 @@ type Agent struct {
 	collector Collector
 }
 
-func NewAgent(client Client, collector Collector) *Agent {
+func NewApplication(client Client, collector Collector) *Agent {
 	return &Agent{
 		client:    client,
 		collector: collector,

@@ -3,6 +3,8 @@ package memory
 import (
 	"fmt"
 	"sync"
+
+	"metricalert/internal/server/core/repositories"
 )
 
 type MemStorage struct {
@@ -18,30 +20,41 @@ func NewMemStorage(config *Config) *MemStorage {
 	}
 }
 
-func (s *MemStorage) UpdateGauge(name string, value float64) {
+func (s *MemStorage) UpdateGauge(name string, value float64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.gauges[name] = value
+
+	return nil
 }
 
-func (s *MemStorage) UpdateCounter(name string, value int64) {
+func (s *MemStorage) UpdateCounter(name string, value int64) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.counters[name] += value
+
+	return nil
 }
 
-func (s *MemStorage) GetGauge(name string) (float64, bool) {
+func (s *MemStorage) GetGauge(name string) (float64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	val, ok := s.gauges[name]
-	return val, ok
+	if !ok {
+		return 0, repositories.ErrNotFound
+	}
+
+	return val, nil
 }
 
-func (s *MemStorage) GetCounter(name string) (int64, bool) {
+func (s *MemStorage) GetCounter(name string) (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	val, ok := s.counters[name]
-	return val, ok
+	if !ok {
+		return 0, repositories.ErrNotFound
+	}
+	return val, nil
 }
 
 func (s *MemStorage) GetGaugeList() map[string]string {

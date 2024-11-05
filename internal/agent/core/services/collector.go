@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"sync/atomic"
 
-	"metricalert/internal/core/model"
+	"metricalert/internal/server/core/model"
 )
 
 type Collector struct {

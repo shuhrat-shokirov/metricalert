@@ -6,7 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"metricalert/internal/core/model"
+	"metricalert/internal/server/core/model"
+	"metricalert/internal/server/core/repositories"
 )
 
 type Repo interface {
@@ -36,7 +37,7 @@ const (
 
 func (a *Application) UpdateMetric(metricName, metricTypeName, value string) error {
 	if strings.TrimSpace(metricName) == "" {
-		return fmt.Errorf("empty metric name, error: %w", model.ErrorNotFound)
+		return fmt.Errorf("empty metric name, error: %w", ErrNotFound)
 	}
 
 	switch metricType(metricTypeName) {
@@ -45,7 +46,7 @@ func (a *Application) UpdateMetric(metricName, metricTypeName, value string) err
 	case counterType:
 		return a.updateCounterType(metricName, value)
 	default:
-		return fmt.Errorf("unknown metric type, error: %w", model.ErrorBadRequest)
+		return fmt.Errorf("unknown metric type, error: %w", ErrBadRequest)
 	}
 }
 
@@ -53,7 +54,7 @@ func (a *Application) updateGaugeType(metricName, metricValue string) error {
 
 	value, err := strconv.ParseFloat(metricValue, 64)
 	if err != nil {
-		return fmt.Errorf("can't parse value: %w", errors.Join(err, model.ErrorBadRequest))
+		return fmt.Errorf("can't parse value: %w", errors.Join(err, ErrBadRequest))
 	}
 
 	if err = a.repo.UpdateGauge(metricName, value); err != nil {
@@ -67,7 +68,7 @@ func (a *Application) updateCounterType(metricName, metricValue string) error {
 
 	value, err := strconv.Atoi(metricValue)
 	if err != nil {
-		return fmt.Errorf("can't parse value: %w", errors.Join(err, model.ErrorBadRequest))
+		return fmt.Errorf("can't parse value: %w", errors.Join(err, ErrBadRequest))
 	}
 
 	if err = a.repo.UpdateCounter(metricName, int64(value)); err != nil {
@@ -77,11 +78,19 @@ func (a *Application) updateCounterType(metricName, metricValue string) error {
 	return nil
 }
 
+var (
+	ErrBadRequest = errors.New("bad request")
+	ErrNotFound   = errors.New("not found")
+)
+
 func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 	switch metricType {
 	case "gauge":
 		gauge, err := a.repo.GetGauge(metricName)
 		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
+			}
 			return "", err
 		}
 
@@ -94,7 +103,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 
 		return fmt.Sprintf("%d", counter), nil
 	default:
-		return "", fmt.Errorf("unknown metric type: %w", model.ErrorBadRequest)
+		return "", fmt.Errorf("unknown metric type: %w", ErrBadRequest)
 	}
 }
 

@@ -1,25 +1,22 @@
 package main
 
 import (
-	"metricalert/internal/core/application"
-	"metricalert/internal/core/services"
-	"metricalert/internal/infra/api/rest"
-	"metricalert/internal/infra/store"
-	"metricalert/internal/infra/store/memory"
+	"metricalert/internal/server/core/application"
+	"metricalert/internal/server/infra/api/rest"
+	store2 "metricalert/internal/server/infra/store"
+	"metricalert/internal/server/infra/store/memory"
 )
 
 func run() error {
 
-	newStore, err := store.NewStore(store.Config{
+	newStore, err := store2.NewStore(store2.Config{
 		Memory: &memory.Config{},
 	})
 	if err != nil {
 		return err
 	}
 
-	repo := services.NewRepo(newStore)
-
-	newApplication := application.NewApplication(repo)
+	newApplication := application.NewApplication(newStore)
 
 	api := rest.NewServerAPI(newApplication)
 

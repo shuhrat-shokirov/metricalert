@@ -7,7 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"metricalert/internal/core/model"
+	"metricalert/internal/server/core/application"
+	"metricalert/internal/server/core/model"
 )
 
 type ServerService interface {
@@ -62,9 +63,9 @@ func (h *handler) update(ginCtx *gin.Context) {
 	err := h.server.UpdateMetric(metricName, metricType, metricValue)
 	if err != nil {
 		switch {
-		case errors.Is(err, model.ErrorBadRequest):
+		case errors.Is(err, application.ErrBadRequest):
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-		case errors.Is(err, model.ErrorNotFound):
+		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
@@ -85,9 +86,9 @@ func (h *handler) get(ginCtx *gin.Context) {
 	value, err := h.server.GetMetric(metricName, metricType)
 	if err != nil {
 		switch {
-		case errors.Is(err, model.ErrorBadRequest):
+		case errors.Is(err, application.ErrBadRequest):
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-		case errors.Is(err, model.ErrorNotFound):
+		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
