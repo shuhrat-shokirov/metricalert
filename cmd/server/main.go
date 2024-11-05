@@ -1,9 +1,13 @@
 package main
 
-import "log"
+import (
+	"fmt"
+	"os"
+)
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatalln(err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 }

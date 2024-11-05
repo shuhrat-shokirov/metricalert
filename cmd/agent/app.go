@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"time"
 
 	"metricalert/internal/agent/core/application"
@@ -21,6 +22,14 @@ func init() {
 	flag.DurationVar(&reportInterval, "r", 10*time.Second, "report interval")
 	flag.DurationVar(&pollInterval, "p", 2*time.Second, "poll interval")
 	flag.Parse()
+
+	// Проверка на неизвестные флаги
+	flag.VisitAll(func(f *flag.Flag) {
+		if !flag.Parsed() {
+			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", f.Name)
+			os.Exit(1)
+		}
+	})
 }
 
 func run() error {

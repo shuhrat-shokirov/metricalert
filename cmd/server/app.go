@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
@@ -14,6 +16,14 @@ var port int64
 func init() {
 	flag.Int64Var(&port, "port", 8080, "port to listen on")
 	flag.Parse()
+
+	// Проверка на неизвестные флаги
+	flag.VisitAll(func(f *flag.Flag) {
+		if !flag.Parsed() {
+			fmt.Fprintf(os.Stderr, "Unknown flag: %s\n", f.Name)
+			os.Exit(1)
+		}
+	})
 }
 
 func run() error {
