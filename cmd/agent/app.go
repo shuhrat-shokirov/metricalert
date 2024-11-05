@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"time"
 
 	"metricalert/internal/agent/core/application"
@@ -8,14 +9,24 @@ import (
 	"metricalert/internal/agent/core/services"
 )
 
+var (
+	addr           string
+	reportInterval time.Duration
+	pollInterval   time.Duration
+)
+
+func init() {
+	flag.StringVar(&addr, "a", "localhost:8080", "server address")
+	flag.DurationVar(&reportInterval, "r", 10*time.Second, "report interval")
+	flag.DurationVar(&pollInterval, "p", 2*time.Second, "poll interval")
+	flag.Parse()
+}
+
 func run() error {
-	client := client.NewClient("http://localhost:8080")
+	client := client.NewClient(addr)
 	collector := services.NewCollector()
 
 	agent := application.NewApplication(client, collector)
-
-	pollInterval := 2 * time.Second
-	reportInterval := 10 * time.Second
 
 	agent.Start(pollInterval, reportInterval)
 

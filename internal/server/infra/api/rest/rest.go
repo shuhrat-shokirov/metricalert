@@ -2,6 +2,8 @@ package rest
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"text/template"
 
@@ -21,7 +23,7 @@ type API struct {
 	srv *http.Server
 }
 
-func NewServerAPI(server ServerService) *API {
+func NewServerAPI(server ServerService, port int64) *API {
 	h := handler{
 		server: server,
 	}
@@ -36,9 +38,11 @@ func NewServerAPI(server ServerService) *API {
 
 	router.GET("/", h.metrics)
 
+	log.Printf("Server started on port %d", port)
+
 	return &API{
 		srv: &http.Server{
-			Addr:    ":8080",
+			Addr:    fmt.Sprintf(":%d", port),
 			Handler: router,
 		},
 	}
