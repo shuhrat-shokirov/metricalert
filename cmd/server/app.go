@@ -4,18 +4,55 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
-	store2 "metricalert/internal/server/infra/store"
+	"metricalert/internal/server/infra/store"
 	"metricalert/internal/server/infra/store/memory"
 )
 
-var port int64
+type Network struct {
+	Host string
+	Port int
+}
+
+func (n *Network) String() string {
+	return fmt.Sprintf("%s:%d", n.Host, n.Port)
+}
+
+func (n *Network) Set(value string) error {
+	split := strings.Split(value, ":")
+	if len(split) != 2 {
+		return fmt.Errorf("invalid format")
+	}
+
+	n.Host = split[0]
+
+	atoi, err := strconv.Atoi(split[1])
+	if err != nil {
+		return err
+	}
+
+	n.Port = atoi
+
+	return nil
+}
+
+var port int64 = 8080
 
 func init() {
-	flag.Int64Var(&port, "port", 8080, "port to listen on")
+
+	addr := new(Network)
+
+	flag.Var(addr, "a", "server address")
+
 	flag.Parse()
+
+	if addr.Port != 0 {
+		port = int64(addr.Port)
+	}
 
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
@@ -27,7 +64,7 @@ func init() {
 }
 
 func run() error {
-	newStore, err := store2.NewStore(store2.Config{
+	newStore, err := store.NewStore(store.Config{
 		Memory: &memory.Config{},
 	})
 	if err != nil {
