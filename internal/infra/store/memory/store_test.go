@@ -31,7 +31,7 @@ func TestMemStorage_UpdateGauge1(t *testing.T) {
 				name:  "test",
 				value: 0.9,
 			},
-			want: 2,
+			want: 0.9,
 		},
 		{
 			name: "third test",
@@ -39,7 +39,7 @@ func TestMemStorage_UpdateGauge1(t *testing.T) {
 				name:  "test",
 				value: -1,
 			},
-			want: 1,
+			want: -1,
 		},
 	}
 
