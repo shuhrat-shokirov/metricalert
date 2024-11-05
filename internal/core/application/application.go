@@ -85,7 +85,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 			return "", err
 		}
 
-		return fmt.Sprintf("%f", gauge), nil
+		return fmt.Sprintf("%g", gauge), nil
 	case "counter":
 		counter, err := a.repo.GetCounter(metricName)
 		if err != nil {
