@@ -21,7 +21,7 @@ func NewMemStorage(config *Config) *MemStorage {
 func (s *MemStorage) UpdateGauge(name string, value float64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.gauges[name] += value
+	s.gauges[name] = value
 }
 
 func (s *MemStorage) UpdateCounter(name string, value int64) {
