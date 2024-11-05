@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"time"
 
 	"metricalert/internal/agent/core/application"
@@ -23,7 +24,7 @@ func init() {
 }
 
 func run() error {
-	client := client.NewClient(addr)
+	client := client.NewClient(fmt.Sprintf("http://%s", addr))
 	collector := services.NewCollector()
 
 	agent := application.NewApplication(client, collector)
