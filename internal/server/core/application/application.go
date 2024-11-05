@@ -98,6 +98,9 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 	case "counter":
 		counter, err := a.repo.GetCounter(metricName)
 		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
+			}
 			return "", err
 		}
 
