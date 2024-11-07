@@ -31,7 +31,7 @@ func init() {
 		os.Exit(1)
 	}
 
-	serverAddr := flag.String("a", defaultParams.Addr, "server address")
+	serverAddr := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
 
