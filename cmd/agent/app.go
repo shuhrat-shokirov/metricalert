@@ -20,7 +20,7 @@ var (
 )
 
 type DefaultParams struct {
-	Addr           string `env:"ADDR"`
+	Addr           string `env:"ADDRESS"`
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 }

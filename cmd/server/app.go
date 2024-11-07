@@ -18,7 +18,7 @@ import (
 var portService int64 = 8080
 
 type DefaultParams struct {
-	Addr string `env:"ADDR"`
+	Addr string `env:"ADDRESS"`
 }
 
 func init() {
