@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/caarlos0/env/v11"
+
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
 	"metricalert/internal/server/infra/store"
@@ -15,11 +17,27 @@ import (
 
 var portService int64 = 8080
 
+type DefaultParams struct {
+	Addr string `env:"ADDR"`
+}
+
 func init() {
 
-	serverAddr := flag.String("a", "localhost:8080", "server address")
+	var defaultParams DefaultParams
+
+	err := env.Parse(&defaultParams)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	serverAddr := flag.String("a", defaultParams.Addr, "server address")
 
 	flag.Parse()
+
+	if defaultParams.Addr != "" {
+		serverAddr = &defaultParams.Addr
+	}
 
 	portService = func() int64 {
 		split := strings.Split(*serverAddr, ":")
