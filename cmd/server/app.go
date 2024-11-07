@@ -2,6 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/caarlos0/env/v11"
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
@@ -13,6 +19,16 @@ func init() {
 }
 
 func run(port int64) error {
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			panic(err)
+		}
+	}()
 	newStore, err := store.NewStore(store.Config{
 		Memory: &memory.Config{},
 	})
@@ -22,7 +38,7 @@ func run(port int64) error {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(newApplication, port)
+	api := rest.NewServerAPI(newApplication, port, *logger.Sugar())
 
 	return api.Run()
 }

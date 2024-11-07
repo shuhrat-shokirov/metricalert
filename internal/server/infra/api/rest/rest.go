@@ -6,8 +6,10 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/core/model"
@@ -23,14 +25,15 @@ type API struct {
 	srv *http.Server
 }
 
-func NewServerAPI(server ServerService, port int64) *API {
+func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *API {
 	h := handler{
 		server: server,
+		sugar:  sugar,
 	}
 
 	router := gin.New()
 	router.Use(gin.Recovery())
-	router.Use(gin.Logger())
+	router.Use(h.MwLog())
 
 	router.POST("/update/:type/:name/:value", h.update)
 
@@ -48,12 +51,32 @@ func NewServerAPI(server ServerService, port int64) *API {
 	}
 }
 
+func (h *handler) MwLog() gin.HandlerFunc {
+	return func(c *gin.Context) {
+
+		now := time.Now()
+
+		c.Next()
+
+		h.sugar.Infoln(
+			"URI: ", c.Request.RequestURI,
+			"Method: ", c.Request.Method,
+			"Latency: ", time.Since(now).String(),
+			"Status: ", c.Writer.Status(),
+			"Size: ", c.Writer.Size(),
+		)
+
+	}
+
+}
+
 func (a *API) Run() error {
 	return a.srv.ListenAndServe()
 }
 
 type handler struct {
 	server ServerService
+	sugar  zap.SugaredLogger
 }
 
 func (h *handler) update(ginCtx *gin.Context) {
