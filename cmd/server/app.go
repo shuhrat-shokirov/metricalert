@@ -13,46 +13,28 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
-type Network struct {
-	Host string
-	Port int
-}
-
-func (n *Network) String() string {
-	return fmt.Sprintf("%s:%d", n.Host, n.Port)
-}
-
-func (n *Network) Set(value string) error {
-	split := strings.Split(value, ":")
-	if len(split) != 2 {
-		return fmt.Errorf("invalid format")
-	}
-
-	n.Host = split[0]
-
-	atoi, err := strconv.Atoi(split[1])
-	if err != nil {
-		return err
-	}
-
-	n.Port = atoi
-
-	return nil
-}
-
-var port int64 = 8080
+var portService int64 = 8080
 
 func init() {
 
-	addr := new(Network)
-
-	flag.Var(addr, "a", "server address")
+	serverAddr := flag.String("a", "localhost:8080", "server address")
 
 	flag.Parse()
 
-	if addr.Port != 0 {
-		port = int64(addr.Port)
-	}
+	portService = func() int64 {
+		split := strings.Split(*serverAddr, ":")
+		if len(split) != 2 {
+			fmt.Fprintf(os.Stderr, "Invalid server address: %s\n", *serverAddr)
+			os.Exit(1)
+		}
+		port, err := strconv.ParseInt(split[1], 10, 64)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid port: %s\n", split[1])
+			os.Exit(1)
+		}
+
+		return port
+	}()
 
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
@@ -73,7 +55,7 @@ func run() error {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(newApplication, port)
+	api := rest.NewServerAPI(newApplication, portService)
 
 	return api.Run()
 }
