@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/caarlos0/env/v11"
+	"go.uber.org/zap"
 )
 
 type configParams struct {
@@ -54,8 +55,19 @@ func main() {
 		}
 	})
 
-	if err := run(portService); err != nil {
-		log.Printf("can't run server: %v", err)
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Printf("can't create logger: %v", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("can't sync logger: %v", err)
+		}
+	}()
+
+	if err := run(portService, *logger.Sugar()); err != nil {
+		logger.Error("can't run server", zap.Error(err))
 		os.Exit(1)
 	}
 }

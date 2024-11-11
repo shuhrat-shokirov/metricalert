@@ -11,17 +11,7 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
-func run(port int64) error {
-
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		panic(err)
-	}
-	defer func() {
-		if err := logger.Sync(); err != nil {
-			panic(err)
-		}
-	}()
+func run(port int64, logger zap.SugaredLogger) error {
 	newStore, err := store.NewStore(store.Config{
 		Memory: &memory.Config{},
 	})
@@ -31,7 +21,7 @@ func run(port int64) error {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(newApplication, port, *logger.Sugar())
+	api := rest.NewServerAPI(newApplication, port, logger)
 
 	return api.Run()
 }
