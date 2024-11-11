@@ -2,11 +2,7 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
 
-	"github.com/caarlos0/env/v11"
 	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/application"
@@ -14,9 +10,6 @@ import (
 	"metricalert/internal/server/infra/store"
 	"metricalert/internal/server/infra/store/memory"
 )
-
-func init() {
-}
 
 func run(port int64) error {
 
