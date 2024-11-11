@@ -3,9 +3,9 @@ package rest
 import (
 	"errors"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
-	"text/template"
 
 	"github.com/gin-gonic/gin"
 
@@ -72,6 +72,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
+			log.Printf("failed to update metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -95,6 +96,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
+			log.Printf("failed to get metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -103,6 +105,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	_, err = ginCtx.Writer.Write([]byte(value))
 	if err != nil {
+		log.Printf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -118,6 +121,7 @@ func (h *handler) metrics(ginCtx *gin.Context) {
 
 	err := tmpl.Execute(ginCtx.Writer, metrics)
 	if err != nil {
+		log.Printf("failed to execute template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}

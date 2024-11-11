@@ -25,7 +25,7 @@ func (c *handler) SendMetric(metricName, metricType string, value interface{}) e
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(nil))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "text/plain")
@@ -34,12 +34,12 @@ func (c *handler) SendMetric(metricName, metricType string, value interface{}) e
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to send metric: %w", err)
 	}
 	defer func() {
 		err := resp.Body.Close()
 		if err != nil {
-			fmt.Println(err)
+			fmt.Printf("failed to close response body: %v", err)
 		}
 	}()
 

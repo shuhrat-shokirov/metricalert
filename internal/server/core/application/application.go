@@ -94,7 +94,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 			return "", err
 		}
 
-		return fmt.Sprintf("%g", gauge), nil
+		return strconv.FormatFloat(gauge, 'g', -1, 64), nil
 	case "counter":
 		counter, err := a.repo.GetCounter(metricName)
 		if err != nil {
@@ -104,7 +104,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 			return "", err
 		}
 
-		return fmt.Sprintf("%d", counter), nil
+		return strconv.Itoa(int(counter)), nil
 	default:
 		return "", fmt.Errorf("unknown metric type: %w", ErrBadRequest)
 	}

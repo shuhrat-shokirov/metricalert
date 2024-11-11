@@ -1,7 +1,7 @@
 package store
 
 import (
-	"errors"
+	"fmt"
 
 	"metricalert/internal/server/infra/store/memory"
 )
@@ -19,6 +19,6 @@ func NewStore(conf Config) (Store, error) {
 	case conf.Memory != nil:
 		return memory.NewMemStorage(conf.Memory), nil
 	default:
-		return nil, errors.New("unknown store type")
+		return nil, fmt.Errorf("unknown store type")
 	}
 }

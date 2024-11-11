@@ -46,7 +46,7 @@ func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
 			for _, metric := range metrics {
 				err := a.client.SendMetric(metric.Name, metric.Type, metric.Value)
 				if err != nil {
-					log.Println("Error sending metric:", err)
+					log.Printf("Error sending metric: %v", err)
 				}
 			}
 
