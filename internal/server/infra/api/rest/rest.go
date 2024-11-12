@@ -117,9 +117,14 @@ func (h *handler) metrics(ginCtx *gin.Context) {
 	metrics := h.server.GetMetrics()
 	ginCtx.Writer.Header().Set("Content-Type", "text/html")
 
-	tmpl := template.Must(template.New("").Parse(metricsTemplate))
+	tmpl, err := template.New("").Parse(metricsTemplate)
+	if err != nil {
+		log.Printf("failed to parse template: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-	err := tmpl.Execute(ginCtx.Writer, metrics)
+	err = tmpl.Execute(ginCtx.Writer, metrics)
 	if err != nil {
 		log.Printf("failed to execute template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
