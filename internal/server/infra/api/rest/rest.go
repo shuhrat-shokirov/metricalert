@@ -93,9 +93,6 @@ func (h *handler) update(ginCtx *gin.Context) {
 		metricValue = ginCtx.Param("value")
 	)
 
-	log.Printf("url: %s, metricType: %s, metricName: %s, metricValue: %s",
-		ginCtx.Request.RequestURI, metricType, metricName, metricValue)
-
 	var value any
 
 	switch metricType {
@@ -150,8 +147,6 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	log.Printf("url: %s, metric: %v", ginCtx.Request.RequestURI, zap.Any("metric", metric))
 
 	var value any
 	switch metric.MType {
@@ -222,9 +217,6 @@ func (h *handler) get(ginCtx *gin.Context) {
 		return
 	}
 
-	log.Printf("url: %s, metricType: %s, metricName: %s, value: %s",
-		ginCtx.Request.RequestURI, metricType, metricName, value)
-
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	_, err = ginCtx.Writer.Write([]byte(value))
 	if err != nil {
@@ -293,9 +285,6 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-
-	log.Printf("url: %s, metric: %v, value: %s",
-		ginCtx.Request.RequestURI, zap.Any("req", request), value)
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	ginCtx.Header("Content-Type", "application/json")

@@ -52,6 +52,9 @@ func (c *Collector) CollectMetrics() []model.Metric {
 	metrics = append(metrics, model.Metric{Name: "TotalAlloc", Value: float64(memStats.TotalAlloc), Type: "gauge"})
 	metrics = append(metrics, model.Metric{Name: "PollCount", Value: atomic.LoadInt64(&c.pollCount), Type: "counter"})
 	metrics = append(metrics, model.Metric{Name: "RandomValue", Value: rand.Float64() * 100, Type: "gauge"})
+	metrics = append(metrics, model.Metric{Name: "GCSys", Value: float64(memStats.GCSys), Type: "gauge"})
+	metrics = append(metrics, model.Metric{Name: "NumForcedGC", Value: float64(memStats.NumForcedGC), Type: "gauge"})
+	metrics = append(metrics, model.Metric{Name: "OtherSys", Value: float64(memStats.OtherSys), Type: "gauge"})
 
 	return metrics
 }
