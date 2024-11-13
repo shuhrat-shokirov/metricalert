@@ -2,7 +2,7 @@ package model
 
 type Metric struct {
 	Name  string
-	Value float64
+	Value any
 	Type  string
 }
 

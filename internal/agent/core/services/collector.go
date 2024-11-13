@@ -50,7 +50,7 @@ func (c *Collector) CollectMetrics() []model.Metric {
 	metrics = append(metrics, model.Metric{Name: "StackSys", Value: float64(memStats.StackSys), Type: "gauge"})
 	metrics = append(metrics, model.Metric{Name: "Sys", Value: float64(memStats.Sys), Type: "gauge"})
 	metrics = append(metrics, model.Metric{Name: "TotalAlloc", Value: float64(memStats.TotalAlloc), Type: "gauge"})
-	metrics = append(metrics, model.Metric{Name: "PollCount", Value: float64(atomic.LoadInt64(&c.pollCount)), Type: "counter"})
+	metrics = append(metrics, model.Metric{Name: "PollCount", Value: atomic.LoadInt64(&c.pollCount), Type: "counter"})
 	metrics = append(metrics, model.Metric{Name: "RandomValue", Value: rand.Float64() * 100, Type: "gauge"})
 
 	return metrics
