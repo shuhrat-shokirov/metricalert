@@ -54,7 +54,7 @@ func (a *Application) UpdateMetric(metricName, metricTypeName string, value any)
 			return fmt.Errorf("can't parse counter value: %w", ErrBadRequest)
 		}
 
-		return a.repo.UpdateCounter(metricName, int64(metricValue))
+		return a.repo.UpdateCounter(metricName, metricValue)
 	default:
 		return fmt.Errorf("unknown metric type, error: %w", ErrBadRequest)
 	}
