@@ -16,7 +16,7 @@ import (
 )
 
 type ServerService interface {
-	UpdateMetric(metricName, metricType, value string) error
+	UpdateMetric(metricName, metricType string, value any) error
 	GetMetric(metricName, metricType string) (string, error)
 	GetMetrics() []model.MetricData
 }
@@ -35,7 +35,7 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.Use(gin.Recovery())
 	router.Use(h.MwLog())
 
-	router.POST("/update/:type/:name/:value", h.update)
+	router.POST("/update/", h.update)
 
 	router.GET("/value/:type/:name", h.get)
 
@@ -81,13 +81,40 @@ type handler struct {
 
 func (h *handler) update(ginCtx *gin.Context) {
 
-	var (
-		metricType  = ginCtx.Param("type")
-		metricName  = ginCtx.Param("name")
-		metricValue = ginCtx.Param("value")
-	)
+	var metric metrics
 
-	err := h.server.UpdateMetric(metricName, metricType, metricValue)
+	err := ginCtx.BindJSON(&metric)
+	if err != nil {
+		log.Printf("failed to bind json: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var value any
+	switch metric.MType {
+	case "counter":
+		if metric.Delta == nil {
+			log.Printf("delta is nil")
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		value = *metric.Delta
+	case "gauge":
+		if metric.Value == nil {
+			log.Printf("value is nil")
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		value = *metric.Value
+	default:
+		log.Printf("unknown metric type")
+		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	err = h.server.UpdateMetric(metric.ID, metric.MType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -102,6 +129,13 @@ func (h *handler) update(ginCtx *gin.Context) {
 	}
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
+}
+
+type metrics struct {
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 func (h *handler) get(ginCtx *gin.Context) {
