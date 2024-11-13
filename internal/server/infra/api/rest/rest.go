@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ import (
 )
 
 type ServerService interface {
-	UpdateMetric(metricName, metricType string, value any) error
+	UpdateMetric(metricName, metricType, value string) error
 	GetMetric(metricName, metricType string) (string, error)
 	GetMetrics() []model.MetricData
 }
@@ -35,7 +36,9 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.Use(gin.Recovery())
 	router.Use(h.MwLog())
 
-	router.POST("/update/", h.update)
+	router.POST("/update/:type/:name/:value", h.update)
+
+	router.POST("/update/", h.updateWithBody)
 
 	router.GET("/value/:type/:name", h.get)
 
@@ -81,6 +84,31 @@ type handler struct {
 
 func (h *handler) update(ginCtx *gin.Context) {
 
+	var (
+		metricType  = ginCtx.Param("type")
+		metricName  = ginCtx.Param("name")
+		metricValue = ginCtx.Param("value")
+	)
+
+	err := h.server.UpdateMetric(metricName, metricType, metricValue)
+	if err != nil {
+		switch {
+		case errors.Is(err, application.ErrBadRequest):
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, application.ErrNotFound):
+			ginCtx.Writer.WriteHeader(http.StatusNotFound)
+		default:
+			log.Printf("failed to update metric: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	ginCtx.Writer.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) updateWithBody(ginCtx *gin.Context) {
+
 	var metric metrics
 
 	err := ginCtx.BindJSON(&metric)
@@ -90,7 +118,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		return
 	}
 
-	var value any
+	var value string
 	switch metric.MType {
 	case "counter":
 		if metric.Delta == nil {
@@ -99,7 +127,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 			return
 		}
 
-		value = *metric.Delta
+		value = strconv.Itoa(int(*metric.Delta))
 	case "gauge":
 		if metric.Value == nil {
 			log.Printf("value is nil")
@@ -107,7 +135,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 			return
 		}
 
-		value = *metric.Value
+		value = strconv.FormatFloat(*metric.Value, 'f', -1, 64)
 	default:
 		log.Printf("unknown metric type")
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
