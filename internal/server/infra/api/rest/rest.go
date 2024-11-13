@@ -260,6 +260,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	}
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
+	ginCtx.Header("Content-Type", "application/json")
 	_, err = ginCtx.Writer.Write(bytes)
 	if err != nil {
 		log.Printf("failed to write response: %v", err)
