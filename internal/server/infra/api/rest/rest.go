@@ -106,14 +106,14 @@ func (h *handler) update(ginCtx *gin.Context) {
 
 		value = int64(v)
 	case "gauge":
-		_, err := strconv.ParseFloat(metricValue, 64)
+		v, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			log.Printf("failed to parse gauge value: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
-		value = metricValue
+		value = v
 	}
 
 	err := h.server.UpdateMetric(metricName, metricType, value)
