@@ -18,7 +18,7 @@ import (
 )
 
 type ServerService interface {
-	UpdateMetric(metricName, metricType, value string) error
+	UpdateMetric(metricName, metricType string, value any) error
 	GetMetric(metricName, metricType string) (string, error)
 	GetMetrics() []model.MetricData
 }
@@ -93,7 +93,30 @@ func (h *handler) update(ginCtx *gin.Context) {
 		metricValue = ginCtx.Param("value")
 	)
 
-	err := h.server.UpdateMetric(metricName, metricType, metricValue)
+	var value any
+
+	switch metricType {
+	case "counter":
+		v, err := strconv.Atoi(metricValue)
+		if err != nil {
+			log.Printf("failed to parse counter value: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		value = int64(v)
+	case "gauge":
+		_, err := strconv.ParseFloat(metricValue, 64)
+		if err != nil {
+			log.Printf("failed to parse gauge value: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		value = metricValue
+	}
+
+	err := h.server.UpdateMetric(metricName, metricType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -121,7 +144,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		return
 	}
 
-	var value string
+	var value any
 	switch metric.MType {
 	case "counter":
 		if metric.Delta == nil {
@@ -130,7 +153,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 			return
 		}
 
-		value = strconv.Itoa(int(*metric.Delta))
+		value = *metric.Delta
 	case "gauge":
 		if metric.Value == nil {
 			log.Printf("value is nil")
@@ -138,7 +161,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 			return
 		}
 
-		value = strconv.FormatFloat(*metric.Value, 'f', -1, 64)
+		value = *metric.Value
 	default:
 		log.Printf("unknown metric type")
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)

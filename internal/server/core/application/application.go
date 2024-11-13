@@ -35,23 +35,23 @@ const (
 	counterType metricType = "counter"
 )
 
-func (a *Application) UpdateMetric(metricName, metricTypeName, value string) error {
+func (a *Application) UpdateMetric(metricName, metricTypeName string, value any) error {
 	if strings.TrimSpace(metricName) == "" {
 		return fmt.Errorf("empty metric name, error: %w", ErrNotFound)
 	}
 
 	switch metricType(metricTypeName) {
 	case gaugeType:
-		metricValue, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("can't parse gauge value: %w", errors.Join(err, ErrBadRequest))
+		metricValue, ok := value.(float64)
+		if !ok {
+			return fmt.Errorf("can't parse gauge value: %w", ErrBadRequest)
 		}
 
 		return a.repo.UpdateGauge(metricName, metricValue)
 	case counterType:
-		metricValue, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("can't parse counter value: %w", errors.Join(err, ErrBadRequest))
+		metricValue, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("can't parse counter value: %w", ErrBadRequest)
 		}
 
 		return a.repo.UpdateCounter(metricName, int64(metricValue))
