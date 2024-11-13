@@ -1,6 +1,7 @@
 package rest
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
@@ -41,6 +42,8 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.POST("/update/", h.updateWithBody)
 
 	router.GET("/value/:type/:name", h.get)
+
+	router.POST("/value/", h.getMetricValue)
 
 	router.GET("/", h.metrics)
 
@@ -189,6 +192,75 @@ func (h *handler) get(ginCtx *gin.Context) {
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	_, err = ginCtx.Writer.Write([]byte(value))
+	if err != nil {
+		log.Printf("failed to write response: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *handler) getMetricValue(ginCtx *gin.Context) {
+
+	var request metrics
+
+	err := ginCtx.BindJSON(&request)
+	if err != nil {
+		log.Printf("failed to bind json: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	value, err := h.server.GetMetric(request.ID, request.MType)
+	if err != nil {
+		switch {
+		case errors.Is(err, application.ErrBadRequest):
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, application.ErrNotFound):
+			ginCtx.Writer.WriteHeader(http.StatusNotFound)
+		default:
+			log.Printf("failed to get metric: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	response := metrics{
+		ID:    request.ID,
+		MType: request.MType,
+	}
+
+	switch request.MType {
+	case "counter":
+		v, err := strconv.Atoi(value)
+		if err != nil {
+			log.Printf("failed to parse counter value: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		metricValue := int64(v)
+
+		response.Delta = &metricValue
+	case "gauge":
+		v, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			log.Printf("failed to parse gauge value: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		response.Value = &v
+	}
+
+	bytes, err := json.Marshal(response)
+	if err != nil {
+		log.Printf("failed to marshal response: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	ginCtx.Writer.WriteHeader(http.StatusOK)
+	_, err = ginCtx.Writer.Write(bytes)
 	if err != nil {
 		log.Printf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
