@@ -1,13 +1,16 @@
 package rest
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -36,6 +39,8 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router := gin.New()
 	router.Use(gin.Recovery())
 	router.Use(h.MwLog())
+	router.Use(h.mwDecompress())
+	router.Use(h.responseGzipMiddleware())
 
 	router.POST("/update/:type/:name/:value", h.update)
 
@@ -54,6 +59,36 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 			Addr:    fmt.Sprintf(":%d", port),
 			Handler: router,
 		},
+	}
+}
+
+func (h *handler) mwDecompress() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
+			c.Next()
+			return
+		}
+
+		gzipReader, err := gzip.NewReader(c.Request.Body)
+		if err != nil {
+			log.Printf("failed to create gzip reader: %v", err)
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		defer func() {
+			err := gzipReader.Close()
+			if err != nil {
+				log.Printf("failed to close gzip reader: %v", err)
+			}
+		}()
+
+		c.Request.Body = io.NopCloser(gzipReader)
+
+		c.Writer.Header().Set("Content-Encoding", "gzip")
+		c.Writer.Header().Set("Accept-Encoding", "gzip")
+
+		c.Next()
 	}
 }
 
@@ -341,3 +376,45 @@ const metricsTemplate = `
 </body>
 </html>
 `
+
+func (h *handler) responseGzipMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Проверяем, поддерживает ли клиент gzip
+		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
+			c.Next()
+			return
+		}
+
+		// Выполняем обработку запроса и сохраняем ответ
+		c.Writer.Header().Set("Content-Encoding", "gzip")
+		c.Writer.Header().Set("Accept-Encoding", "gzip")
+
+		// Перенаправляем вывод в gzip.Writer
+		gz := gzip.NewWriter(c.Writer)
+		defer func() {
+			err := gz.Close()
+			if err != nil {
+				log.Printf("failed to close gzip writer: %v", err)
+			}
+		}()
+
+		// Заменяем Writer на обертку для gzip
+		c.Writer = &gzipResponseWriter{Writer: gz, ResponseWriter: c.Writer}
+
+		c.Next()
+	}
+}
+
+type gzipResponseWriter struct {
+	io.Writer
+	gin.ResponseWriter
+}
+
+func (w *gzipResponseWriter) Write(data []byte) (int, error) {
+	// Проверяем тип контента и выполняем сжатие только для JSON и HTML
+	contentType := w.Header().Get("Content-Type")
+	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html") {
+		return w.Writer.Write(data)
+	}
+	return w.ResponseWriter.Write(data)
+}

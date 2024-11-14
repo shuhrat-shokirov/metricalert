@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -51,17 +52,18 @@ func (c *handler) SendMetric(metricName, metricType string, value any) error {
 		metric.Value = &v
 	}
 
-	body, err := json.Marshal(metric)
+	byteData, err := compress(metric)
 	if err != nil {
-		return fmt.Errorf("failed to marshal metric: %w", err)
+		return fmt.Errorf("failed to compress data: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(byteData))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
 
 	client := &http.Client{Timeout: 5 * time.Second}
 
@@ -81,4 +83,21 @@ func (c *handler) SendMetric(metricName, metricType string, value any) error {
 	}
 
 	return nil
+}
+
+func compress(data any) ([]byte, error) {
+	var buf bytes.Buffer
+
+	gz := gzip.NewWriter(&buf)
+	err := json.NewEncoder(gz).Encode(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode data: %w", err)
+	}
+
+	err = gz.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
