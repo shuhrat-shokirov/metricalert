@@ -64,7 +64,7 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 
 func (h *handler) mwDecompress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
+		if !strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {
 			c.Next()
 			return
 		}
