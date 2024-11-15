@@ -1,7 +1,6 @@
 package memory
 
 import (
-	"fmt"
 	"sync"
 
 	"metricalert/internal/server/core/repositories"
@@ -56,11 +55,22 @@ func (s *MemStorage) GetCounter(name string) (int64, error) {
 	return val, nil
 }
 
-func (s *MemStorage) GetGaugeList() map[string]string {
-	result := make(map[string]string)
-	for k, v := range s.gauges {
-		result[k] = fmt.Sprintf("%f", v)
-	}
+func (s *MemStorage) GetGaugeList() map[string]float64 {
+	return s.gauges
+}
 
-	return result
+func (s *MemStorage) GetCounterList() map[string]int64 {
+	return s.counters
+}
+
+func (s *MemStorage) RestoreGauges(gauges map[string]float64) {
+	s.gaugesM.Lock()
+	s.gauges = gauges
+	s.gaugesM.Unlock()
+}
+
+func (s *MemStorage) RestoreCounters(counters map[string]int64) {
+	s.countersM.Lock()
+	s.counters = counters
+	s.countersM.Unlock()
 }

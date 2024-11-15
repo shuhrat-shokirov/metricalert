@@ -1,10 +1,13 @@
 package application
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"metricalert/internal/server/core/model"
 	"metricalert/internal/server/core/repositories"
@@ -13,18 +16,23 @@ import (
 type Repo interface {
 	UpdateGauge(name string, value float64) error
 	UpdateCounter(name string, value int64) error
-	GetGaugeList() map[string]string
+	GetGaugeList() map[string]float64
+	GetCounterList() map[string]int64
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
+	RestoreGauges(gauges map[string]float64)
+	RestoreCounters(counters map[string]int64)
 }
 
 type Application struct {
 	repo Repo
+	mu   *sync.Mutex
 }
 
 func NewApplication(repo Repo) *Application {
 	return &Application{
 		repo: repo,
+		mu:   &sync.Mutex{},
 	}
 }
 
@@ -99,9 +107,63 @@ func (a *Application) GetMetrics() []model.MetricData {
 	for name, value := range gaugeList {
 		metrics = append(metrics, model.MetricData{
 			Name:  name,
-			Value: value,
+			Value: fmt.Sprintf("%f", value),
 		})
 	}
 
 	return metrics
+}
+
+func (a *Application) SaveMetricsToFile(filePath string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	gaugeList := a.repo.GetGaugeList()
+	counterList := a.repo.GetCounterList()
+
+	metrics := metric{
+		Gauges:   gaugeList,
+		Counters: counterList,
+	}
+
+	bytes, err := json.Marshal(metrics)
+	if err != nil {
+		return fmt.Errorf("failed to marshal data: %w", err)
+	}
+
+	err = os.WriteFile(filePath, bytes, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+type metric struct {
+	Gauges   map[string]float64 `json:"gauges"`
+	Counters map[string]int64   `json:"counters"`
+}
+
+func (a *Application) LoadMetricsFromFile(filePath string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	bytes, err := os.ReadFile(filePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to read file: %w", err)
+	}
+
+	var metrics metric
+	err = json.Unmarshal(bytes, &metrics)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal data: %w", err)
+	}
+
+	a.repo.RestoreGauges(metrics.Gauges)
+	a.repo.RestoreCounters(metrics.Counters)
+
+	return nil
 }
