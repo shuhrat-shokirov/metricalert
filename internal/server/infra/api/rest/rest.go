@@ -23,8 +23,6 @@ type ServerService interface {
 	UpdateMetric(metricName, metricType string, value any) error
 	GetMetric(metricName, metricType string) (string, error)
 	GetMetrics() []model.MetricData
-	SaveMetricsToFile(filePath string) error
-	LoadMetricsFromFile(filePath string) error
 }
 
 type API struct {

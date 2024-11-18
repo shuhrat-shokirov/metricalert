@@ -1,10 +1,8 @@
 package application
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,8 +18,7 @@ type Repo interface {
 	GetCounterList() map[string]int64
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
-	RestoreGauges(gauges map[string]float64)
-	RestoreCounters(counters map[string]int64)
+	Close() error
 }
 
 type Application struct {
@@ -118,59 +115,4 @@ func (a *Application) GetMetrics() []model.MetricData {
 	}
 
 	return metrics
-}
-
-func (a *Application) SaveMetricsToFile(filePath string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	gaugeList := a.repo.GetGaugeList()
-	counterList := a.repo.GetCounterList()
-
-	metrics := metric{
-		Gauges:   gaugeList,
-		Counters: counterList,
-	}
-
-	bytes, err := json.Marshal(metrics)
-	if err != nil {
-		return fmt.Errorf("failed to marshal data: %w", err)
-	}
-
-	const perm = 0o600
-	err = os.WriteFile(filePath, bytes, perm)
-	if err != nil {
-		return fmt.Errorf("failed to write file: %w", err)
-	}
-
-	return nil
-}
-
-type metric struct {
-	Gauges   map[string]float64 `json:"gauges"`
-	Counters map[string]int64   `json:"counters"`
-}
-
-func (a *Application) LoadMetricsFromFile(filePath string) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
-	bytes, err := os.ReadFile(filePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return nil
-		}
-		return fmt.Errorf("failed to read file: %w", err)
-	}
-
-	var metrics metric
-	err = json.Unmarshal(bytes, &metrics)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal data: %w", err)
-	}
-
-	a.repo.RestoreGauges(metrics.Gauges)
-	a.repo.RestoreCounters(metrics.Counters)
-
-	return nil
 }
