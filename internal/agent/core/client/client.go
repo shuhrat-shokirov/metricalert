@@ -18,10 +18,10 @@ type handler struct {
 }
 
 type metrics struct {
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	ID    string   `json:"id"`              // имя метрики
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 func NewClient(addr string) Client {
@@ -29,8 +29,7 @@ func NewClient(addr string) Client {
 }
 
 func (c *handler) SendMetric(metricName, metricType string, value any) error {
-
-	url := fmt.Sprintf("%s/update/", c.addr)
+	url := fmt.Sprintf("http://%s/update/", c.addr)
 
 	var metric = metrics{
 		ID:    metricName,
@@ -65,7 +64,9 @@ func (c *handler) SendMetric(metricName, metricType string, value any) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
 
-	client := &http.Client{Timeout: 5 * time.Second}
+	const timeout = 5 * time.Second
+
+	client := &http.Client{Timeout: timeout}
 
 	resp, err := client.Do(req)
 	if err != nil {

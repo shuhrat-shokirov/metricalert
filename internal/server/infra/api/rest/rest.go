@@ -65,7 +65,8 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 
 func (h *handler) mwDecompress() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if !strings.Contains(c.GetHeader("Content-Encoding"), "gzip") {
+		const gzipScheme = "gzip"
+		if !strings.Contains(c.GetHeader("Content-Encoding"), gzipScheme) {
 			c.Next()
 			return
 		}
@@ -86,8 +87,8 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 
 		c.Request.Body = io.NopCloser(gzipReader)
 
-		c.Writer.Header().Set("Content-Encoding", "gzip")
-		c.Writer.Header().Set("Accept-Encoding", "gzip")
+		c.Writer.Header().Set("Content-Encoding", gzipScheme)
+		c.Writer.Header().Set("Accept-Encoding", gzipScheme)
 
 		c.Next()
 	}
@@ -95,7 +96,6 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 
 func (h *handler) MwLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
-
 		now := time.Now()
 
 		c.Next()
@@ -107,13 +107,15 @@ func (h *handler) MwLog() gin.HandlerFunc {
 			"Status: ", c.Writer.Status(),
 			"Size: ", c.Writer.Size(),
 		)
-
 	}
-
 }
 
 func (a *API) Run() error {
-	return a.srv.ListenAndServe()
+	if err := a.srv.ListenAndServe(); err != nil {
+		return fmt.Errorf("can't start server: %w", err)
+	}
+
+	return nil
 }
 
 type handler struct {
@@ -122,7 +124,6 @@ type handler struct {
 }
 
 func (h *handler) update(ginCtx *gin.Context) {
-
 	var (
 		metricType  = ginCtx.Param("type")
 		metricName  = ginCtx.Param("name")
@@ -174,7 +175,6 @@ func (h *handler) update(ginCtx *gin.Context) {
 }
 
 func (h *handler) updateWithBody(ginCtx *gin.Context) {
-
 	var metric metrics
 
 	err := ginCtx.BindJSON(&metric)
@@ -226,14 +226,13 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 }
 
 type metrics struct {
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
 	ID    string   `json:"id"`              // имя метрики
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 func (h *handler) get(ginCtx *gin.Context) {
-
 	var (
 		metricType = ginCtx.Param("type")
 		metricName = ginCtx.Param("name")
@@ -254,7 +253,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 	}
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
-	_, err = ginCtx.Writer.Write([]byte(value))
+	_, err = ginCtx.Writer.WriteString(value)
 	if err != nil {
 		h.sugar.Errorf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
@@ -263,7 +262,6 @@ func (h *handler) get(ginCtx *gin.Context) {
 }
 
 func (h *handler) getMetricValue(ginCtx *gin.Context) {
-
 	var request metrics
 
 	err := ginCtx.BindJSON(&request)
@@ -415,7 +413,18 @@ func (w *gzipResponseWriter) Write(data []byte) (int, error) {
 	// Проверяем тип контента и выполняем сжатие только для JSON и HTML
 	contentType := w.Header().Get("Content-Type")
 	if strings.Contains(contentType, "application/json") || strings.Contains(contentType, "text/html") {
-		return w.Writer.Write(data)
+		n, err := w.Writer.Write(data)
+		if err != nil {
+			return n, fmt.Errorf("failed to write data: %w", err)
+		}
+
+		return n, nil
 	}
-	return w.ResponseWriter.Write(data)
+
+	write, err := w.ResponseWriter.Write(data)
+	if err != nil {
+		return write, fmt.Errorf("failed to write data: %w", err)
+	}
+
+	return write, nil
 }

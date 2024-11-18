@@ -7,7 +7,6 @@ import (
 )
 
 func TestMemStorage_UpdateGauge1(t *testing.T) {
-
 	type args struct {
 		name  string
 		value float64

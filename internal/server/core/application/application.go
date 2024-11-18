@@ -55,17 +55,23 @@ func (a *Application) UpdateMetric(metricName, metricTypeName string, value any)
 			return fmt.Errorf("can't parse gauge value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
-		return a.repo.UpdateGauge(metricName, metricValue)
+		if err := a.repo.UpdateGauge(metricName, metricValue); err != nil {
+			return fmt.Errorf("failed to update gauge: %w", err)
+		}
 	case counterType:
 		metricValue, ok := value.(int64)
 		if !ok {
 			return fmt.Errorf("can't parse counter value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
-		return a.repo.UpdateCounter(metricName, metricValue)
+		if err := a.repo.UpdateCounter(metricName, metricValue); err != nil {
+			return fmt.Errorf("failed to update counter: %w", err)
+		}
 	default:
 		return fmt.Errorf("unknown metric type, value: %s, error: %w", metricTypeName, ErrBadRequest)
 	}
+
+	return nil
 }
 
 var (
@@ -81,7 +87,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
 			}
-			return "", err
+			return "", fmt.Errorf("failed to get gauge: %w", err)
 		}
 
 		return strconv.FormatFloat(gauge, 'g', -1, 64), nil
@@ -91,7 +97,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
 			}
-			return "", err
+			return "", fmt.Errorf("failed to get counter: %w", err)
 		}
 
 		return strconv.Itoa(int(counter)), nil
@@ -103,7 +109,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 func (a *Application) GetMetrics() []model.MetricData {
 	gaugeList := a.repo.GetGaugeList()
 
-	var metrics []model.MetricData
+	var metrics = make([]model.MetricData, 0, len(gaugeList))
 	for name, value := range gaugeList {
 		metrics = append(metrics, model.MetricData{
 			Name:  name,
@@ -131,7 +137,8 @@ func (a *Application) SaveMetricsToFile(filePath string) error {
 		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	err = os.WriteFile(filePath, bytes, 0644)
+	const perm = 0o600
+	err = os.WriteFile(filePath, bytes, perm)
 	if err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}

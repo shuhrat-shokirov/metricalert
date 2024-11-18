@@ -15,11 +15,11 @@ import (
 )
 
 type config struct {
+	logger        zap.SugaredLogger
+	fileStorePath string
 	port          int64
 	storeInterval int
-	fileStorePath string
 	restore       bool
-	logger        zap.SugaredLogger
 }
 
 func run(conf config) error {
@@ -67,5 +67,9 @@ func run(conf config) error {
 		os.Exit(0)
 	}()
 
-	return api.Run()
+	if err := api.Run(); err != nil {
+		return fmt.Errorf("can't start server: %w", err)
+	}
+
+	return nil
 }
