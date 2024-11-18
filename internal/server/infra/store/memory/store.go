@@ -24,16 +24,18 @@ func NewMemStorage(config *Config) *MemStorage {
 
 func (s *MemStorage) UpdateGauge(name string, value float64) error {
 	s.gaugesM.Lock()
+	defer s.gaugesM.Unlock()
+
 	s.gauges[name] = value
-	s.gaugesM.Unlock()
 
 	return nil
 }
 
 func (s *MemStorage) UpdateCounter(name string, value int64) error {
 	s.countersM.Lock()
+	defer s.countersM.Unlock()
+
 	s.counters[name] += value
-	s.countersM.Unlock()
 
 	return nil
 }
@@ -65,12 +67,14 @@ func (s *MemStorage) GetCounterList() map[string]int64 {
 
 func (s *MemStorage) RestoreGauges(gauges map[string]float64) {
 	s.gaugesM.Lock()
+	defer s.gaugesM.Unlock()
+
 	s.gauges = gauges
-	s.gaugesM.Unlock()
 }
 
 func (s *MemStorage) RestoreCounters(counters map[string]int64) {
 	s.countersM.Lock()
+	defer s.countersM.Unlock()
+
 	s.counters = counters
-	s.countersM.Unlock()
 }

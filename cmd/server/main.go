@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
 	"strconv"
 	"strings"
 
@@ -23,8 +22,7 @@ func main() {
 
 	err := env.Parse(&defaultParams)
 	if err != nil {
-		log.Printf("can't parse env: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("can't parse env: %v", err)
 	}
 
 	serverAddr := flag.String("a", "localhost:8080", "server address")
@@ -53,13 +51,11 @@ func main() {
 	portService := func() int64 {
 		split := strings.Split(*serverAddr, ":")
 		if len(split) != 2 {
-			log.Printf("Invalid address: %s\n", *serverAddr)
-			os.Exit(1)
+			log.Fatalf("can't parse address: %s", *serverAddr)
 		}
 		port, err := strconv.ParseInt(split[1], 10, 64)
 		if err != nil {
-			log.Printf("Invalid port: %s\n", split[1])
-			os.Exit(1)
+			log.Fatalf("can't parse port: %v", err)
 		}
 
 		return port
@@ -68,15 +64,13 @@ func main() {
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
 		if !flag.Parsed() {
-			log.Printf("Unknown flag: %s\n", f.Name)
-			os.Exit(1)
+			log.Fatalf("can't parse flag: %s", f.Name)
 		}
 	})
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		log.Printf("can't create logger: %v", err)
-		os.Exit(1)
+		log.Fatalf("can't initialize logger: %v", err)
 	}
 	defer func() {
 		if err := logger.Sync(); err != nil {
@@ -84,8 +78,13 @@ func main() {
 		}
 	}()
 
-	if err := run(portService, *logger.Sugar(), *storeInterval, *fileStorePath, *restore); err != nil {
-		logger.Error("can't run server", zap.Error(err))
-		os.Exit(1)
+	if err := run(config{
+		port:          portService,
+		storeInterval: *storeInterval,
+		fileStorePath: *fileStorePath,
+		restore:       *restore,
+		logger:        *logger.Sugar(),
+	}); err != nil {
+		logger.Fatal("can't run server", zap.Error(err))
 	}
 }

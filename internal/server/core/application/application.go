@@ -52,19 +52,19 @@ func (a *Application) UpdateMetric(metricName, metricTypeName string, value any)
 	case gaugeType:
 		metricValue, ok := value.(float64)
 		if !ok {
-			return fmt.Errorf("can't parse gauge value: %w", ErrBadRequest)
+			return fmt.Errorf("can't parse gauge value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
 		return a.repo.UpdateGauge(metricName, metricValue)
 	case counterType:
 		metricValue, ok := value.(int64)
 		if !ok {
-			return fmt.Errorf("can't parse counter value: %w", ErrBadRequest)
+			return fmt.Errorf("can't parse counter value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
 		return a.repo.UpdateCounter(metricName, metricValue)
 	default:
-		return fmt.Errorf("unknown metric type, error: %w", ErrBadRequest)
+		return fmt.Errorf("unknown metric type, value: %s, error: %w", metricTypeName, ErrBadRequest)
 	}
 }
 
@@ -96,7 +96,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 
 		return strconv.Itoa(int(counter)), nil
 	default:
-		return "", fmt.Errorf("unknown metric type: %w", ErrBadRequest)
+		return "", fmt.Errorf("unknown metric type, value: %s, error: %w", metricType, ErrBadRequest)
 	}
 }
 
@@ -107,7 +107,7 @@ func (a *Application) GetMetrics() []model.MetricData {
 	for name, value := range gaugeList {
 		metrics = append(metrics, model.MetricData{
 			Name:  name,
-			Value: fmt.Sprintf("%f", value),
+			Value: strconv.FormatFloat(value, 'g', -1, 64),
 		})
 	}
 

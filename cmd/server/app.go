@@ -14,7 +14,15 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
-func run(port int64, logger zap.SugaredLogger, storeInterval int, fileStorePath string, restore bool) error {
+type config struct {
+	port          int64
+	storeInterval int
+	fileStorePath string
+	restore       bool
+	logger        zap.SugaredLogger
+}
+
+func run(conf config) error {
 	newStore, err := store.NewStore(store.Config{
 		Memory: &memory.Config{},
 	})
@@ -24,24 +32,24 @@ func run(port int64, logger zap.SugaredLogger, storeInterval int, fileStorePath 
 
 	newApplication := application.NewApplication(newStore)
 
-	if restore {
-		err = newApplication.LoadMetricsFromFile(fileStorePath)
+	if conf.restore {
+		err = newApplication.LoadMetricsFromFile(conf.fileStorePath)
 		if err != nil {
 			return fmt.Errorf("can't load metrics from file: %w", err)
 		}
 	}
 
-	api := rest.NewServerAPI(newApplication, port, logger)
+	api := rest.NewServerAPI(newApplication, conf.port, conf.logger)
 
-	if storeInterval > 0 {
-		ticker := time.NewTicker(time.Duration(storeInterval) * time.Second)
+	if conf.storeInterval > 0 {
+		ticker := time.NewTicker(time.Duration(conf.storeInterval) * time.Second)
 		defer ticker.Stop()
 
 		go func() {
 			for range ticker.C {
-				err := newApplication.SaveMetricsToFile(fileStorePath)
+				err := newApplication.SaveMetricsToFile(conf.fileStorePath)
 				if err != nil {
-					logger.Errorf("can't save metrics to file: %v", err)
+					conf.logger.Errorf("can't save metrics to file: %v", err)
 				}
 			}
 		}()
@@ -52,9 +60,9 @@ func run(port int64, logger zap.SugaredLogger, storeInterval int, fileStorePath 
 
 	go func() {
 		<-stop
-		err := newApplication.SaveMetricsToFile(fileStorePath)
+		err := newApplication.SaveMetricsToFile(conf.fileStorePath)
 		if err != nil {
-			logger.Errorf("can't save metrics to file: %v", err)
+			conf.logger.Errorf("can't save metrics to file: %v", err)
 		}
 		os.Exit(0)
 	}()

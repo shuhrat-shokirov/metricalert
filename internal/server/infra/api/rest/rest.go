@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -54,7 +53,7 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 
 	router.GET("/", h.metrics)
 
-	log.Printf("Server started on port %d", port)
+	h.sugar.Infof("server started on port: %d", port)
 
 	return &API{
 		srv: &http.Server{
@@ -73,7 +72,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 
 		gzipReader, err := gzip.NewReader(c.Request.Body)
 		if err != nil {
-			log.Printf("failed to create gzip reader: %v", err)
+			h.sugar.Errorf("failed to create gzip reader: %v", err)
 			c.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -81,7 +80,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 		defer func() {
 			err := gzipReader.Close()
 			if err != nil {
-				log.Printf("failed to close gzip reader: %v", err)
+				h.sugar.Errorf("failed to close gzip reader: %v", err)
 			}
 		}()
 
@@ -136,7 +135,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 	case "counter":
 		v, err := strconv.Atoi(metricValue)
 		if err != nil {
-			log.Printf("failed to parse counter value: %v", err)
+			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", metricValue, err)
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -145,14 +144,14 @@ func (h *handler) update(ginCtx *gin.Context) {
 	case "gauge":
 		v, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			log.Printf("failed to parse gauge value: %v", err)
+			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", metricValue, err)
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		value = v
 	default:
-		log.Printf("unknown metric type")
+		h.sugar.Errorf("unknown metric type: %s", metricType)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -165,7 +164,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			log.Printf("failed to update metric: %v", err)
+			h.sugar.Errorf("failed to update metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -180,7 +179,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 
 	err := ginCtx.BindJSON(&metric)
 	if err != nil {
-		log.Printf("failed to bind json: %v", err)
+		h.sugar.Errorf("failed to bind json: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -189,7 +188,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 	switch metric.MType {
 	case "counter":
 		if metric.Delta == nil {
-			log.Printf("delta is nil")
+			h.sugar.Errorf("delta is nil on counter metric")
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -197,14 +196,14 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		value = *metric.Delta
 	case "gauge":
 		if metric.Value == nil {
-			log.Printf("value is nil")
+			h.sugar.Errorf("value is nil on gauge metric")
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		value = *metric.Value
 	default:
-		log.Printf("unknown metric type")
+		h.sugar.Errorf("unknown metric type: %s", metric.MType)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -217,7 +216,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			log.Printf("failed to update metric: %v", err)
+			h.sugar.Errorf("failed to update metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -248,7 +247,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			log.Printf("failed to get metric: %v", err)
+			h.sugar.Errorf("failed to get metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -257,7 +256,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	_, err = ginCtx.Writer.Write([]byte(value))
 	if err != nil {
-		log.Printf("failed to write response: %v", err)
+		h.sugar.Errorf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -269,7 +268,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 	err := ginCtx.BindJSON(&request)
 	if err != nil {
-		log.Printf("failed to bind json: %v", err)
+		h.sugar.Errorf("failed to bind json: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -282,7 +281,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			log.Printf("failed to get metric: %v", err)
+			h.sugar.Errorf("failed to get metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -297,7 +296,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	case "counter":
 		v, err := strconv.Atoi(value)
 		if err != nil {
-			log.Printf("failed to parse counter value: %v", err)
+			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", value, err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -308,7 +307,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	case "gauge":
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			log.Printf("failed to parse gauge value: %v", err)
+			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", value, err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -318,7 +317,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 	bytes, err := json.Marshal(response)
 	if err != nil {
-		log.Printf("failed to marshal response: %v", err)
+		h.sugar.Errorf("failed to marshal response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -327,7 +326,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	ginCtx.Header("Content-Type", "application/json")
 	_, err = ginCtx.Writer.Write(bytes)
 	if err != nil {
-		log.Printf("failed to write response: %v", err)
+		h.sugar.Errorf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -341,14 +340,14 @@ func (h *handler) metrics(ginCtx *gin.Context) {
 
 	tmpl, err := template.New("").Parse(metricsTemplate)
 	if err != nil {
-		log.Printf("failed to parse template: %v", err)
+		h.sugar.Errorf("failed to parse template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	err = tmpl.Execute(ginCtx.Writer, metrics)
 	if err != nil {
-		log.Printf("failed to execute template: %v", err)
+		h.sugar.Errorf("failed to execute template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -396,7 +395,7 @@ func (h *handler) responseGzipMiddleware() gin.HandlerFunc {
 		defer func() {
 			err := gz.Close()
 			if err != nil {
-				log.Printf("failed to close gzip writer: %v", err)
+				h.sugar.Errorf("failed to close gzip writer: %v", err)
 			}
 		}()
 

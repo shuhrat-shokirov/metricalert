@@ -41,13 +41,13 @@ func (c *handler) SendMetric(metricName, metricType string, value any) error {
 	case "counter":
 		v, ok := value.(int64)
 		if !ok {
-			return fmt.Errorf("invalid value type")
+			return fmt.Errorf("invalid counter value type, type: %T, value: %v", value, value)
 		}
 		metric.Delta = &v
 	case "gauge":
 		v, ok := value.(float64)
 		if !ok {
-			return fmt.Errorf("invalid value type")
+			return fmt.Errorf("invalid gauge value type, type: %T, value: %v", value, value)
 		}
 		metric.Value = &v
 	}
