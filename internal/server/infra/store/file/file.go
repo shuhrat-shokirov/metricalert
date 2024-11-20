@@ -13,10 +13,10 @@ import (
 )
 
 type Store struct {
-	memStore *memory.Store
-	file     *os.File
-	mu       *sync.Mutex
-	ticker   *time.Ticker
+	*memory.Store
+	file   *os.File
+	mu     *sync.Mutex
+	ticker *time.Ticker
 }
 
 func NewStore(conf *Config) (*Store, error) {
@@ -32,10 +32,10 @@ func NewStore(conf *Config) (*Store, error) {
 	}
 
 	s := &Store{
-		memStore: memory.NewStore(conf.MemoryStore),
-		file:     file,
-		mu:       &sync.Mutex{},
-		ticker:   time.NewTicker(time.Duration(conf.StoreInterval) * time.Second),
+		Store:  memory.NewStore(conf.MemoryStore),
+		file:   file,
+		mu:     &sync.Mutex{},
+		ticker: time.NewTicker(time.Duration(conf.StoreInterval) * time.Second),
 	}
 
 	go func() {
@@ -56,8 +56,8 @@ func NewStore(conf *Config) (*Store, error) {
 		return nil, fmt.Errorf("can't unmarshal data: %w", err)
 	}
 
-	s.memStore.RestoreGauges(metrics.Gauges)
-	s.memStore.RestoreCounters(metrics.Counters)
+	s.RestoreGauges(metrics.Gauges)
+	s.RestoreCounters(metrics.Counters)
 
 	return s, nil
 }
@@ -68,7 +68,7 @@ type metric struct {
 }
 
 func (s *Store) UpdateGauge(name string, value float64) error {
-	err := s.memStore.UpdateGauge(name, value)
+	err := s.Store.UpdateGauge(name, value)
 	if err != nil {
 		return fmt.Errorf("can't update gauge: %w", err)
 	}
@@ -81,8 +81,8 @@ func (s *Store) saveToFile() error {
 	defer s.mu.Unlock()
 
 	metrics := metric{
-		Gauges:   s.memStore.GetGaugeList(),
-		Counters: s.memStore.GetCounterList(),
+		Gauges:   s.GetGaugeList(),
+		Counters: s.GetCounterList(),
 	}
 
 	bytes, err := json.Marshal(metrics)
@@ -104,7 +104,7 @@ func (s *Store) saveToFile() error {
 }
 
 func (s *Store) UpdateCounter(name string, value int64) error {
-	err := s.memStore.UpdateCounter(name, value)
+	err := s.Store.UpdateCounter(name, value)
 	if err != nil {
 		return fmt.Errorf("can't update counter: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *Store) UpdateCounter(name string, value int64) error {
 }
 
 func (s *Store) GetGauge(name string) (float64, error) {
-	value, err := s.memStore.GetGauge(name)
+	value, err := s.Store.GetGauge(name)
 	if err != nil {
 		return 0, fmt.Errorf("can't get gauge: %w", err)
 	}
@@ -122,7 +122,7 @@ func (s *Store) GetGauge(name string) (float64, error) {
 }
 
 func (s *Store) GetCounter(name string) (int64, error) {
-	value, err := s.memStore.GetCounter(name)
+	value, err := s.Store.GetCounter(name)
 	if err != nil {
 		return 0, fmt.Errorf("can't get counter: %w", err)
 	}
@@ -147,9 +147,9 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) GetGaugeList() map[string]float64 {
-	return s.memStore.GetGaugeList()
+	return s.Store.GetGaugeList()
 }
 
 func (s *Store) GetCounterList() map[string]int64 {
-	return s.memStore.GetCounterList()
+	return s.Store.GetCounterList()
 }
