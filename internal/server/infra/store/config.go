@@ -1,9 +1,9 @@
 package store
 
 import (
-	"metricalert/internal/server/infra/store/memory"
+	"metricalert/internal/server/infra/store/file"
 )
 
 type Config struct {
-	Memory *memory.Config
+	File *file.Config
 }

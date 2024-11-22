@@ -7,7 +7,6 @@ import (
 )
 
 func TestMemStorage_UpdateGauge1(t *testing.T) {
-
 	type args struct {
 		name  string
 		value float64
@@ -43,7 +42,7 @@ func TestMemStorage_UpdateGauge1(t *testing.T) {
 		},
 	}
 
-	s := NewMemStorage(&Config{})
+	s := NewStore(&Config{})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -100,7 +99,7 @@ func TestMemStorage_UpdateCounter(t *testing.T) {
 		},
 	}
 
-	s := NewMemStorage(&Config{})
+	s := NewStore(&Config{})
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

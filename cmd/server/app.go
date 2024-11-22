@@ -2,19 +2,39 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
+
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
 	"metricalert/internal/server/infra/store"
+	"metricalert/internal/server/infra/store/file"
 	"metricalert/internal/server/infra/store/memory"
 )
 
-func init() {
+type config struct {
+	logger        zap.SugaredLogger
+	fileStorePath string
+	port          int64
+	storeInterval int
+	restore       bool
 }
 
-func run(port int64) error {
-	newStore, err := store.NewStore(store.Config{
-		Memory: &memory.Config{},
+func run(conf config) error {
+	var (
+		newStore store.Store
+		err      error
+	)
+
+	newStore, err = store.NewStore(store.Config{
+		File: &file.Config{
+			StoreInterval: conf.storeInterval,
+			Restore:       conf.restore,
+			FilePath:      conf.fileStorePath,
+			MemoryStore:   &memory.Config{},
+		},
 	})
 	if err != nil {
 		return fmt.Errorf("can't create store: %w", err)
@@ -22,7 +42,23 @@ func run(port int64) error {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(newApplication, port)
+	api := rest.NewServerAPI(newApplication, conf.port, conf.logger)
 
-	return api.Run()
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+
+	go func() {
+		<-stop
+		if err := newStore.Close(); err != nil {
+			conf.logger.Errorf("can't close store: %v", err)
+		}
+
+		os.Exit(0)
+	}()
+
+	if err := api.Run(); err != nil {
+		return fmt.Errorf("can't start server: %w", err)
+	}
+
+	return nil
 }

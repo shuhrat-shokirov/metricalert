@@ -2,9 +2,7 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -17,18 +15,22 @@ type configParams struct {
 }
 
 func main() {
-
 	var defaultParams configParams
 
 	err := env.Parse(&defaultParams)
 	if err != nil {
-		log.Printf("can't parse env: %v\n", err)
-		os.Exit(1)
+		log.Fatalf("can't parse env: %v", err)
 	}
 
-	serverAddr := flag.String("a", "localhost:8080", "server address")
-	report := flag.Int64("r", 10, "report interval")
-	poll := flag.Int64("p", 2, "poll interval")
+	const (
+		defaultReportInterval = 10
+		defaultPollInterval   = 2
+		defaultAddr           = "localhost:8080"
+	)
+
+	serverAddr := flag.String("a", defaultAddr, "server address")
+	report := flag.Int64("r", defaultReportInterval, "report interval")
+	poll := flag.Int64("p", defaultPollInterval, "poll interval")
 	flag.Parse()
 
 	if defaultParams.Addr != "" {
@@ -45,17 +47,14 @@ func main() {
 
 	reportInterval := time.Duration(*report) * time.Second
 	pollInterval := time.Duration(*poll) * time.Second
-	addr := fmt.Sprintf("http://%s", *serverAddr)
+	addr := *serverAddr
 
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
 		if !flag.Parsed() {
-			log.Printf("Unknown flag: %s\n", f.Name)
-			os.Exit(1)
+			log.Fatalf("unknown flag: %s", f.Name)
 		}
 	})
 
-	if err := run(addr, reportInterval, pollInterval); err != nil {
-		log.Fatalf("can't run server: %v", err)
-	}
+	run(addr, reportInterval, pollInterval)
 }

@@ -8,13 +8,11 @@ import (
 	"metricalert/internal/agent/core/services"
 )
 
-func run(addr string, reportInterval, pollInterval time.Duration) error {
-	client := client.NewClient(addr)
+func run(addr string, reportInterval, pollInterval time.Duration) {
+	newClient := client.NewClient(addr)
 	collector := services.NewCollector()
 
-	agent := application.NewApplication(client, collector)
+	agent := application.NewApplication(newClient, collector)
 
 	agent.Start(pollInterval, reportInterval)
-
-	return nil
 }
