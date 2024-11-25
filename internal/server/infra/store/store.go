@@ -11,7 +11,9 @@ import (
 
 type Store interface {
 	UpdateGauge(ctx context.Context, name string, value float64) error
+	UpdateGauges(ctx context.Context, gauges map[string]float64) error
 	UpdateCounter(ctx context.Context, name string, value int64) error
+	UpdateCounters(ctx context.Context, counters map[string]int64) error
 	GetGaugeList(context.Context) (map[string]float64, error)
 	GetCounterList(context.Context) (map[string]int64, error)
 	GetGauge(ctx context.Context, name string) (float64, error)

@@ -22,6 +22,7 @@ import (
 
 type ServerService interface {
 	UpdateMetric(ctx context.Context, metricName, metricType string, value any) error
+	UpdateMetrics(ctx context.Context, gaugeList map[string]float64, counterList map[string]int64) error
 	GetMetric(ctx context.Context, metricName, metricType string) (string, error)
 	GetMetrics(ctx context.Context) ([]model.MetricData, error)
 	Ping(ctx context.Context) error
@@ -46,6 +47,8 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.POST("/update/:type/:name/:value", h.update)
 
 	router.POST("/update/", h.updateWithBody)
+
+	router.POST("/updates/", h.batchUpdate)
 
 	router.GET("/value/:type/:name", h.get)
 
@@ -135,7 +138,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 	var value any
 
 	switch metricType {
-	case "counter":
+	case counterType:
 		v, err := strconv.Atoi(metricValue)
 		if err != nil {
 			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", metricValue, err)
@@ -144,7 +147,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		}
 
 		value = int64(v)
-	case "gauge":
+	case gaugeType:
 		v, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
 			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", metricValue, err)
@@ -188,7 +191,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 
 	var value any
 	switch metric.MType {
-	case "counter":
+	case counterType:
 		if metric.Delta == nil {
 			h.sugar.Errorf("delta is nil on counter metric")
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
@@ -196,7 +199,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		}
 
 		value = *metric.Delta
-	case "gauge":
+	case gaugeType:
 		if metric.Value == nil {
 			h.sugar.Errorf("value is nil on gauge metric")
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
@@ -293,7 +296,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	}
 
 	switch request.MType {
-	case "counter":
+	case counterType:
 		v, err := strconv.Atoi(value)
 		if err != nil {
 			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", value, err)
@@ -304,7 +307,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		metricValue := int64(v)
 
 		response.Delta = &metricValue
-	case "gauge":
+	case gaugeType:
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
 			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", value, err)
@@ -442,6 +445,66 @@ func (h *handler) dbPing(ginCtx *gin.Context) {
 	if err != nil {
 		h.sugar.Errorf("failed to ping db: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	ginCtx.Writer.WriteHeader(http.StatusOK)
+}
+
+const (
+	counterType = "counter"
+	gaugeType   = "gauge"
+)
+
+func (h *handler) batchUpdate(ginCtx *gin.Context) {
+	var request []metrics
+
+	err := ginCtx.BindJSON(&request)
+	if err != nil {
+		h.sugar.Errorf("failed to bind json: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var (
+		gaugeMetricList   = map[string]float64{}
+		counterMetricList = map[string]int64{}
+	)
+
+	for _, r := range request {
+		switch r.MType {
+		case counterType:
+			if r.Delta == nil {
+				h.sugar.Errorf("delta is nil on counter metric")
+				ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			counterMetricList[r.ID] = *r.Delta
+		case gaugeType:
+			if r.Value == nil {
+				h.sugar.Errorf("value is nil on gauge metric")
+				ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+				return
+			}
+
+			gaugeMetricList[r.ID] = *r.Value
+		default:
+			continue
+		}
+	}
+
+	err = h.server.UpdateMetrics(context.Background(), gaugeMetricList, counterMetricList)
+	if err != nil {
+		switch {
+		case errors.Is(err, application.ErrBadRequest):
+			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
+		case errors.Is(err, application.ErrNotFound):
+			ginCtx.Writer.WriteHeader(http.StatusNotFound)
+		default:
+			h.sugar.Errorf("failed to update metrics: %v", err)
+			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 

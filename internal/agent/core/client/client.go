@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"metricalert/internal/server/core/model"
 )
 
 type Client interface {
-	SendMetric(metricName, metricType string, value interface{}) error
+	SendMetrics(metrics []model.Metric) error
 }
 
 type handler struct {
@@ -28,30 +30,35 @@ func NewClient(addr string) Client {
 	return &handler{addr: addr}
 }
 
-func (c *handler) SendMetric(metricName, metricType string, value any) error {
-	url := fmt.Sprintf("http://%s/update/", c.addr)
+func (c *handler) SendMetrics(list []model.Metric) error {
+	url := fmt.Sprintf("http://%s/updates/", c.addr)
 
-	var metric = metrics{
-		ID:    metricName,
-		MType: metricType,
+	request := make([]metrics, 0, len(list))
+	for _, metric := range list {
+		var m = metrics{
+			ID:    metric.Name,
+			MType: metric.Type,
+		}
+
+		switch metric.Type {
+		case "counter":
+			v, ok := metric.Value.(int64)
+			if !ok {
+				return fmt.Errorf("invalid counter value type, type: %T, value: %v", metric.Value, metric.Value)
+			}
+			m.Delta = &v
+		case "gauge":
+			v, ok := metric.Value.(float64)
+			if !ok {
+				return fmt.Errorf("invalid gauge value type, type: %T, value: %v", metric.Value, metric.Value)
+			}
+			m.Value = &v
+		}
+
+		request = append(request, m)
 	}
 
-	switch metricType {
-	case "counter":
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("invalid counter value type, type: %T, value: %v", value, value)
-		}
-		metric.Delta = &v
-	case "gauge":
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("invalid gauge value type, type: %T, value: %v", value, value)
-		}
-		metric.Value = &v
-	}
-
-	byteData, err := compress(metric)
+	byteData, err := compress(request)
 	if err != nil {
 		return fmt.Errorf("failed to compress data: %w", err)
 	}

@@ -49,6 +49,34 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 	return nil
 }
 
+func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
+	query := `
+		INSERT INTO gauge_metrics (name, value)
+		VALUES ($1, $2)
+		ON CONFLICT on constraint gauge_metrics_name_key DO 
+		    UPDATE SET value = $2, updated_at = now();`
+
+	batch := &pgx.Batch{}
+
+	for name, value := range gauges {
+		batch.Queue(query, name, value)
+	}
+
+	br := s.pool.SendBatch(ctx, batch)
+	defer func() {
+		if err := br.Close(); err != nil {
+			fmt.Println("can't close batch: %w", err)
+		}
+	}()
+
+	_, err := br.Exec()
+	if err != nil {
+		return fmt.Errorf("can't exec batch: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
 	query := `
 		INSERT INTO counter_metrics (name, value)
@@ -59,6 +87,34 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 	_, err := s.pool.Exec(ctx, query, name, value)
 	if err != nil {
 		return fmt.Errorf("can't exec query: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
+	query := `
+		INSERT INTO counter_metrics (name, value)
+		VALUES ($1, $2)
+		ON CONFLICT on constraint counter_metrics_name_key DO 
+		    UPDATE SET value = counter_metrics.value + $2, updated_at = now();`
+
+	batch := &pgx.Batch{}
+
+	for name, value := range counters {
+		batch.Queue(query, name, value)
+	}
+
+	br := s.pool.SendBatch(ctx, batch)
+	defer func() {
+		if err := br.Close(); err != nil {
+			fmt.Println("can't close batch: %w", err)
+		}
+	}()
+
+	_, err := br.Exec()
+	if err != nil {
+		return fmt.Errorf("can't exec batch: %w", err)
 	}
 
 	return nil

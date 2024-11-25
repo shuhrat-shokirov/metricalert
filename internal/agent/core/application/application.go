@@ -8,7 +8,7 @@ import (
 )
 
 type Client interface {
-	SendMetric(name string, metricType string, value interface{}) error
+	SendMetrics(metrics []model.Metric) error
 }
 
 type Collector interface {
@@ -43,11 +43,9 @@ func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
 			metrics = a.collector.CollectMetrics()
 		case <-ticker.C:
 			// Отправка метрик на сервер каждые reportInterval
-			for _, metric := range metrics {
-				err := a.client.SendMetric(metric.Name, metric.Type, metric.Value)
-				if err != nil {
-					log.Printf("Error sending metric: %v", err)
-				}
+			err := a.client.SendMetrics(metrics)
+			if err != nil {
+				log.Printf("can't send metrics: %v", err)
 			}
 
 			// Сброс счетчиков каждые reportInterval

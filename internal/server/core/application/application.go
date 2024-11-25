@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 
 	"metricalert/internal/server/core/model"
 	"metricalert/internal/server/core/repositories"
@@ -14,7 +13,9 @@ import (
 
 type Repo interface {
 	UpdateGauge(ctx context.Context, name string, value float64) error
+	UpdateGauges(ctx context.Context, gauges map[string]float64) error
 	UpdateCounter(ctx context.Context, name string, value int64) error
+	UpdateCounters(ctx context.Context, counters map[string]int64) error
 	GetGaugeList(ctx context.Context) (map[string]float64, error)
 	GetCounterList(ctx context.Context) (map[string]int64, error)
 	GetGauge(ctx context.Context, name string) (float64, error)
@@ -25,13 +26,11 @@ type Repo interface {
 
 type Application struct {
 	repo Repo
-	mu   *sync.Mutex
 }
 
 func NewApplication(repo Repo) *Application {
 	return &Application{
 		repo: repo,
-		mu:   &sync.Mutex{},
 	}
 }
 
@@ -126,6 +125,23 @@ func (a *Application) Ping(ctx context.Context) error {
 	err := a.repo.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to ping: %w", err)
+	}
+
+	return nil
+}
+
+func (a *Application) UpdateMetrics(ctx context.Context,
+	gaugeList map[string]float64, counterList map[string]int64) error {
+	if len(gaugeList) > 0 {
+		if err := a.repo.UpdateGauges(ctx, gaugeList); err != nil {
+			return fmt.Errorf("failed to update gauges: %w", err)
+		}
+	}
+
+	if len(counterList) > 0 {
+		if err := a.repo.UpdateCounters(ctx, counterList); err != nil {
+			return fmt.Errorf("failed to update counters: %w", err)
+		}
 	}
 
 	return nil

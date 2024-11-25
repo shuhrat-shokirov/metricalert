@@ -33,11 +33,33 @@ func (s *Store) UpdateGauge(_ context.Context, name string, value float64) error
 	return nil
 }
 
+func (s *Store) UpdateGauges(_ context.Context, gauges map[string]float64) error {
+	s.gaugesM.Lock()
+	defer s.gaugesM.Unlock()
+
+	for name, value := range gauges {
+		s.gauges[name] = value
+	}
+
+	return nil
+}
+
 func (s *Store) UpdateCounter(_ context.Context, name string, value int64) error {
 	s.countersM.Lock()
 	defer s.countersM.Unlock()
 
 	s.counters[name] += value
+
+	return nil
+}
+
+func (s *Store) UpdateCounters(_ context.Context, counters map[string]int64) error {
+	s.countersM.Lock()
+	defer s.countersM.Unlock()
+
+	for name, value := range counters {
+		s.counters[name] += value
+	}
 
 	return nil
 }

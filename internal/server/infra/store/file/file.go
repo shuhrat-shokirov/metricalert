@@ -78,6 +78,15 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 	return nil
 }
 
+func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
+	err := s.Store.UpdateGauges(ctx, gauges)
+	if err != nil {
+		return fmt.Errorf("can't update gauges: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Store) saveToFile(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -119,6 +128,15 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 	err := s.Store.UpdateCounter(ctx, name, value)
 	if err != nil {
 		return fmt.Errorf("can't update counter: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
+	err := s.Store.UpdateCounters(ctx, counters)
+	if err != nil {
+		return fmt.Errorf("can't update counters: %w", err)
 	}
 
 	return nil
