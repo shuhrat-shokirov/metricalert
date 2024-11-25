@@ -1,6 +1,7 @@
 package application
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -19,6 +20,7 @@ type Repo interface {
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
 	Close() error
+	Ping(ctx context.Context) error
 }
 
 type Application struct {
@@ -115,4 +117,13 @@ func (a *Application) GetMetrics() []model.MetricData {
 	}
 
 	return metrics
+}
+
+func (a *Application) Ping(ctx context.Context) error {
+	err := a.repo.Ping(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to ping: %w", err)
+	}
+
+	return nil
 }

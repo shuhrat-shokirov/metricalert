@@ -2,6 +2,7 @@ package rest
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ type ServerService interface {
 	UpdateMetric(metricName, metricType string, value any) error
 	GetMetric(metricName, metricType string) (string, error)
 	GetMetrics() []model.MetricData
+	Ping(ctx context.Context) error
 }
 
 type API struct {
@@ -48,6 +50,8 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.GET("/value/:type/:name", h.get)
 
 	router.POST("/value/", h.getMetricValue)
+
+	router.GET("/ping", h.dbPing)
 
 	router.GET("/", h.metrics)
 
@@ -425,4 +429,15 @@ func (w *gzipResponseWriter) Write(data []byte) (int, error) {
 	}
 
 	return write, nil
+}
+
+func (h *handler) dbPing(ginCtx *gin.Context) {
+	err := h.server.Ping(ginCtx.Request.Context())
+	if err != nil {
+		h.sugar.Errorf("failed to ping db: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	ginCtx.Writer.WriteHeader(http.StatusOK)
 }

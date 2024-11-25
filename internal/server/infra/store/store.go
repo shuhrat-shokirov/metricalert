@@ -1,8 +1,10 @@
 package store
 
 import (
+	"context"
 	"fmt"
 
+	"metricalert/internal/server/infra/store/db"
 	"metricalert/internal/server/infra/store/file"
 	"metricalert/internal/server/infra/store/memory"
 )
@@ -15,10 +17,18 @@ type Store interface {
 	GetGauge(name string) (float64, error)
 	GetCounter(name string) (int64, error)
 	Close() error
+	Ping(ctx context.Context) error
 }
 
 func NewStore(conf Config) (Store, error) {
 	switch {
+	case conf.DB != nil:
+		store, err := db.New(conf.DB.DSN)
+		if err != nil {
+			return nil, fmt.Errorf("can't create db store: %w", err)
+		}
+
+		return store, nil
 	case conf.File != nil:
 		if !conf.File.Restore {
 			return memory.NewStore(conf.File.MemoryStore), nil

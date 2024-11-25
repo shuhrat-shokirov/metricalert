@@ -1,7 +1,9 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -152,4 +154,8 @@ func (s *Store) GetGaugeList() map[string]float64 {
 
 func (s *Store) GetCounterList() map[string]int64 {
 	return s.Store.GetCounterList()
+}
+
+func (s *Store) Ping(_ context.Context) error {
+	return errors.New("not implemented")
 }
