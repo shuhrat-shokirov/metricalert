@@ -475,24 +475,18 @@ func (h *handler) batchUpdate(ginCtx *gin.Context) {
 		switch r.MType {
 		case counterType:
 			if r.Delta == nil {
-				h.sugar.Errorf("delta is nil on counter metric")
-				ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-				return
+				h.sugar.Errorf("delta is nil on counter metric, id: %s", r.ID)
+				continue
 			}
 
 			counterMetricList[r.ID] += *r.Delta
 		case gaugeType:
 			if r.Value == nil {
-				h.sugar.Errorf("value is nil on gauge metric")
-				ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-				return
+				h.sugar.Errorf("value is nil on gauge metric, id: %s", r.ID)
+				continue
 			}
 
 			gaugeMetricList[r.ID] = *r.Value
-		default:
-			h.sugar.Errorf("unknown metric type: %s", r.MType)
-			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-			return
 		}
 	}
 
