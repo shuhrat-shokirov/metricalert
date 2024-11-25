@@ -159,7 +159,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		return
 	}
 
-	err := h.server.UpdateMetric(ginCtx.Request.Context(), metricName, metricType, value)
+	err := h.server.UpdateMetric(context.Background(), metricName, metricType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -210,7 +210,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		return
 	}
 
-	err = h.server.UpdateMetric(ginCtx.Request.Context(), metric.ID, metric.MType, value)
+	err = h.server.UpdateMetric(context.Background(), metric.ID, metric.MType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -240,7 +240,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 		metricName = ginCtx.Param("name")
 	)
 
-	value, err := h.server.GetMetric(ginCtx.Request.Context(), metricName, metricType)
+	value, err := h.server.GetMetric(context.Background(), metricName, metricType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -273,7 +273,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		return
 	}
 
-	value, err := h.server.GetMetric(ginCtx.Request.Context(), request.ID, request.MType)
+	value, err := h.server.GetMetric(context.Background(), request.ID, request.MType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -335,7 +335,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 func (h *handler) metrics(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 
-	metrics, err := h.server.GetMetrics(ginCtx.Request.Context())
+	metrics, err := h.server.GetMetrics(context.Background())
 	if err != nil {
 		h.sugar.Errorf("failed to get metrics: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
