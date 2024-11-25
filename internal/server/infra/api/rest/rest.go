@@ -21,9 +21,9 @@ import (
 )
 
 type ServerService interface {
-	UpdateMetric(metricName, metricType string, value any) error
-	GetMetric(metricName, metricType string) (string, error)
-	GetMetrics() []model.MetricData
+	UpdateMetric(ctx context.Context, metricName, metricType string, value any) error
+	GetMetric(ctx context.Context, metricName, metricType string) (string, error)
+	GetMetrics(ctx context.Context) ([]model.MetricData, error)
 	Ping(ctx context.Context) error
 }
 
@@ -159,7 +159,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		return
 	}
 
-	err := h.server.UpdateMetric(metricName, metricType, value)
+	err := h.server.UpdateMetric(ginCtx.Request.Context(), metricName, metricType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -210,7 +210,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		return
 	}
 
-	err = h.server.UpdateMetric(metric.ID, metric.MType, value)
+	err = h.server.UpdateMetric(ginCtx.Request.Context(), metric.ID, metric.MType, value)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -240,7 +240,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 		metricName = ginCtx.Param("name")
 	)
 
-	value, err := h.server.GetMetric(metricName, metricType)
+	value, err := h.server.GetMetric(ginCtx.Request.Context(), metricName, metricType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -273,7 +273,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		return
 	}
 
-	value, err := h.server.GetMetric(request.ID, request.MType)
+	value, err := h.server.GetMetric(ginCtx.Request.Context(), request.ID, request.MType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -335,7 +335,13 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 func (h *handler) metrics(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 
-	metrics := h.server.GetMetrics()
+	metrics, err := h.server.GetMetrics(ginCtx.Request.Context())
+	if err != nil {
+		h.sugar.Errorf("failed to get metrics: %v", err)
+		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	ginCtx.Writer.Header().Set("Content-Type", "text/html")
 
 	tmpl, err := template.New("").Parse(metricsTemplate)

@@ -13,12 +13,12 @@ import (
 )
 
 type Repo interface {
-	UpdateGauge(name string, value float64) error
-	UpdateCounter(name string, value int64) error
-	GetGaugeList() map[string]float64
-	GetCounterList() map[string]int64
-	GetGauge(name string) (float64, error)
-	GetCounter(name string) (int64, error)
+	UpdateGauge(ctx context.Context, name string, value float64) error
+	UpdateCounter(ctx context.Context, name string, value int64) error
+	GetGaugeList(ctx context.Context) (map[string]float64, error)
+	GetCounterList(ctx context.Context) (map[string]int64, error)
+	GetGauge(ctx context.Context, name string) (float64, error)
+	GetCounter(ctx context.Context, name string) (int64, error)
 	Close() error
 	Ping(ctx context.Context) error
 }
@@ -42,7 +42,7 @@ const (
 	counterType metricType = "counter"
 )
 
-func (a *Application) UpdateMetric(metricName, metricTypeName string, value any) error {
+func (a *Application) UpdateMetric(ctx context.Context, metricName, metricTypeName string, value any) error {
 	if strings.TrimSpace(metricName) == "" {
 		return fmt.Errorf("empty metric name, error: %w", ErrNotFound)
 	}
@@ -54,7 +54,7 @@ func (a *Application) UpdateMetric(metricName, metricTypeName string, value any)
 			return fmt.Errorf("can't parse gauge value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
-		if err := a.repo.UpdateGauge(metricName, metricValue); err != nil {
+		if err := a.repo.UpdateGauge(ctx, metricName, metricValue); err != nil {
 			return fmt.Errorf("failed to update gauge: %w", err)
 		}
 	case counterType:
@@ -63,7 +63,7 @@ func (a *Application) UpdateMetric(metricName, metricTypeName string, value any)
 			return fmt.Errorf("can't parse counter value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
 		}
 
-		if err := a.repo.UpdateCounter(metricName, metricValue); err != nil {
+		if err := a.repo.UpdateCounter(ctx, metricName, metricValue); err != nil {
 			return fmt.Errorf("failed to update counter: %w", err)
 		}
 	default:
@@ -78,10 +78,10 @@ var (
 	ErrNotFound   = errors.New("not found")
 )
 
-func (a *Application) GetMetric(metricName, metricType string) (string, error) {
+func (a *Application) GetMetric(ctx context.Context, metricName, metricType string) (string, error) {
 	switch metricType {
 	case "gauge":
-		gauge, err := a.repo.GetGauge(metricName)
+		gauge, err := a.repo.GetGauge(ctx, metricName)
 		if err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
@@ -91,7 +91,7 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 
 		return strconv.FormatFloat(gauge, 'g', -1, 64), nil
 	case "counter":
-		counter, err := a.repo.GetCounter(metricName)
+		counter, err := a.repo.GetCounter(ctx, metricName)
 		if err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				return "", fmt.Errorf("metric not found: %w", ErrNotFound)
@@ -105,8 +105,11 @@ func (a *Application) GetMetric(metricName, metricType string) (string, error) {
 	}
 }
 
-func (a *Application) GetMetrics() []model.MetricData {
-	gaugeList := a.repo.GetGaugeList()
+func (a *Application) GetMetrics(ctx context.Context) ([]model.MetricData, error) {
+	gaugeList, err := a.repo.GetGaugeList(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get gauge list: %w", err)
+	}
 
 	var metrics = make([]model.MetricData, 0, len(gaugeList))
 	for name, value := range gaugeList {
@@ -116,7 +119,7 @@ func (a *Application) GetMetrics() []model.MetricData {
 		})
 	}
 
-	return metrics
+	return metrics, nil
 }
 
 func (a *Application) Ping(ctx context.Context) error {

@@ -10,12 +10,12 @@ import (
 )
 
 type Store interface {
-	UpdateGauge(name string, value float64) error
-	UpdateCounter(name string, value int64) error
-	GetGaugeList() map[string]float64
-	GetCounterList() map[string]int64
-	GetGauge(name string) (float64, error)
-	GetCounter(name string) (int64, error)
+	UpdateGauge(ctx context.Context, name string, value float64) error
+	UpdateCounter(ctx context.Context, name string, value int64) error
+	GetGaugeList(context.Context) (map[string]float64, error)
+	GetCounterList(context.Context) (map[string]int64, error)
+	GetGauge(ctx context.Context, name string) (float64, error)
+	GetCounter(ctx context.Context, name string) (int64, error)
 	Close() error
 	Ping(ctx context.Context) error
 }

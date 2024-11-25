@@ -24,7 +24,7 @@ func NewStore(config *Config) *Store {
 	}
 }
 
-func (s *Store) UpdateGauge(name string, value float64) error {
+func (s *Store) UpdateGauge(_ context.Context, name string, value float64) error {
 	s.gaugesM.Lock()
 	defer s.gaugesM.Unlock()
 
@@ -33,7 +33,7 @@ func (s *Store) UpdateGauge(name string, value float64) error {
 	return nil
 }
 
-func (s *Store) UpdateCounter(name string, value int64) error {
+func (s *Store) UpdateCounter(_ context.Context, name string, value int64) error {
 	s.countersM.Lock()
 	defer s.countersM.Unlock()
 
@@ -42,7 +42,7 @@ func (s *Store) UpdateCounter(name string, value int64) error {
 	return nil
 }
 
-func (s *Store) GetGauge(name string) (float64, error) {
+func (s *Store) GetGauge(_ context.Context, name string) (float64, error) {
 	val, ok := s.gauges[name]
 	if !ok {
 		return 0, repositories.ErrNotFound
@@ -51,7 +51,7 @@ func (s *Store) GetGauge(name string) (float64, error) {
 	return val, nil
 }
 
-func (s *Store) GetCounter(name string) (int64, error) {
+func (s *Store) GetCounter(_ context.Context, name string) (int64, error) {
 	val, ok := s.counters[name]
 	if !ok {
 		return 0, repositories.ErrNotFound
@@ -59,12 +59,12 @@ func (s *Store) GetCounter(name string) (int64, error) {
 	return val, nil
 }
 
-func (s *Store) GetGaugeList() map[string]float64 {
-	return s.gauges
+func (s *Store) GetGaugeList(_ context.Context) (map[string]float64, error) {
+	return s.gauges, nil
 }
 
-func (s *Store) GetCounterList() map[string]int64 {
-	return s.counters
+func (s *Store) GetCounterList(_ context.Context) (map[string]int64, error) {
+	return s.counters, nil
 }
 
 func (s *Store) RestoreGauges(gauges map[string]float64) {
