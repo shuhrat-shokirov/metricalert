@@ -479,7 +479,7 @@ func (h *handler) batchUpdate(ginCtx *gin.Context) {
 				continue
 			}
 
-			counterMetricList[r.ID] = *r.Delta
+			counterMetricList[r.ID] += *r.Delta
 		case gaugeType:
 			if r.Value == nil {
 				h.sugar.Errorf("value is nil on gauge metric, id: %s", r.ID)
