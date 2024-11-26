@@ -1,12 +1,15 @@
-//nolint:nolintlint,dupl,gocritic
+//nolint:nolintlint,dupl,gocritic,goconst
 package db
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"metricalert/internal/server/core/repositories"
@@ -41,12 +44,16 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 		ON CONFLICT on constraint gauge_metrics_name_key DO 
 		    UPDATE SET value = $2, updated_at = now();`
 
-	_, err := s.pool.Exec(ctx, query, name, value)
-	if err != nil {
-		return fmt.Errorf("can't exec query: %w", err)
+	operation := func() error {
+		_, err := s.pool.Exec(ctx, query, name, value)
+		if err != nil {
+			return fmt.Errorf("can't exec: %w", err)
+		}
+
+		return nil
 	}
 
-	return nil
+	return retry(operation)
 }
 
 func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
@@ -69,12 +76,16 @@ func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) err
 		}
 	}()
 
-	_, err := br.Exec()
-	if err != nil {
-		return fmt.Errorf("can't exec batch: %w", err)
+	operation := func() error {
+		_, err := br.Exec()
+		if err != nil {
+			return fmt.Errorf("can't exec: %w", err)
+		}
+
+		return nil
 	}
 
-	return nil
+	return retry(operation)
 }
 
 func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
@@ -84,12 +95,16 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 		ON CONFLICT on constraint counter_metrics_name_key DO 
 		    UPDATE SET value = counter_metrics.value + $2, updated_at = now();`
 
-	_, err := s.pool.Exec(ctx, query, name, value)
-	if err != nil {
-		return fmt.Errorf("can't exec query: %w", err)
+	operation := func() error {
+		_, err := s.pool.Exec(ctx, query, name, value)
+		if err != nil {
+			return fmt.Errorf("can't exec: %w", err)
+		}
+
+		return nil
 	}
 
-	return nil
+	return retry(operation)
 }
 
 func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
@@ -112,12 +127,16 @@ func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) e
 		}
 	}()
 
-	_, err := br.Exec()
-	if err != nil {
-		return fmt.Errorf("can't exec batch: %w", err)
+	operation := func() error {
+		_, err := br.Exec()
+		if err != nil {
+			return fmt.Errorf("can't exec: %w", err)
+		}
+
+		return nil
 	}
 
-	return nil
+	return retry(operation)
 }
 
 func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
@@ -127,16 +146,13 @@ func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 		WHERE name = $1;`
 
 	var value float64
-	err := s.pool.QueryRow(ctx, query, name).Scan(&value)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, repositories.ErrNotFound
-		}
+	row := s.pool.QueryRow(ctx, query, name)
 
-		return 0, fmt.Errorf("can't query row: %w", err)
+	operation := func() error {
+		return row.Scan(&value)
 	}
 
-	return value, nil
+	return value, retry(operation)
 }
 
 func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
@@ -146,16 +162,13 @@ func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 		WHERE name = $1;`
 
 	var value int64
-	err := s.pool.QueryRow(ctx, query, name).Scan(&value)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return 0, repositories.ErrNotFound
-		}
+	row := s.pool.QueryRow(ctx, query, name)
 
-		return 0, fmt.Errorf("can't query row: %w", err)
+	operation := func() error {
+		return row.Scan(&value)
 	}
 
-	return value, nil
+	return value, retry(operation)
 }
 
 func (s *Store) Close() error {
@@ -168,23 +181,28 @@ func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 		SELECT name, value
 		FROM gauge_metrics;`
 
-	rows, err := s.pool.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("can't query: %w", err)
-	}
-	defer rows.Close()
-
 	result := make(map[string]float64)
-	for rows.Next() {
-		var name string
-		var value float64
-		if err = rows.Scan(&name, &value); err != nil {
-			return nil, fmt.Errorf("can't scan: %w", err)
+
+	operation := func() error {
+		rows, err := s.pool.Query(ctx, query)
+		if err != nil {
+			return fmt.Errorf("can't query: %w", err)
 		}
-		result[name] = value
+		defer rows.Close()
+
+		for rows.Next() {
+			var name string
+			var value float64
+			if err = rows.Scan(&name, &value); err != nil {
+				return fmt.Errorf("can't scan: %w", err)
+			}
+			result[name] = value
+		}
+
+		return nil
 	}
 
-	return result, nil
+	return result, retry(operation)
 }
 
 func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
@@ -192,23 +210,28 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 		SELECT name, value
 		FROM counter_metrics;`
 
-	rows, err := s.pool.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("can't query: %w", err)
-	}
-	defer rows.Close()
-
 	result := make(map[string]int64)
-	for rows.Next() {
-		var name string
-		var value int64
-		if err = rows.Scan(&name, &value); err != nil {
-			return nil, fmt.Errorf("can't scan: %w", err)
+
+	operation := func() error {
+		rows, err := s.pool.Query(ctx, query)
+		if err != nil {
+			return fmt.Errorf("can't query: %w", err)
 		}
-		result[name] = value
+		defer rows.Close()
+
+		for rows.Next() {
+			var name string
+			var value int64
+			if err = rows.Scan(&name, &value); err != nil {
+				return fmt.Errorf("can't scan: %w", err)
+			}
+			result[name] = value
+		}
+
+		return nil
 	}
 
-	return result, nil
+	return result, retry(operation)
 }
 
 func (s *Store) Ping(ctx context.Context) error {
@@ -218,4 +241,42 @@ func (s *Store) Ping(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func isRetrievableError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case pgerrcode.ConnectionException, pgerrcode.ConnectionDoesNotExist, pgerrcode.ConnectionFailure:
+			return true
+		}
+	}
+	return false
+}
+
+func retry(operation func() error) error {
+	const maxRetries = 3
+	retryIntervals := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	var lastErr error
+	for i := 0; i <= maxRetries; i++ {
+		if err := operation(); err != nil {
+			if isRetrievableError(err) {
+				lastErr = err
+				if i < maxRetries {
+					time.Sleep(retryIntervals[i])
+					continue
+				}
+			}
+
+			if errors.Is(err, pgx.ErrNoRows) {
+				return repositories.ErrNotFound
+			}
+
+			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
 }

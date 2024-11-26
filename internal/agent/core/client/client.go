@@ -3,8 +3,11 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -73,24 +76,87 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 
 	const timeout = 5 * time.Second
 
-	client := &http.Client{Timeout: timeout}
+	var (
+		client = &http.Client{Timeout: timeout}
+		resp   *http.Response
+	)
 
-	resp, err := client.Do(req)
+	operation := func() error {
+		resp, err = client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send metric: %w", err)
+		}
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				fmt.Printf("failed to close response body: %v", err)
+			}
+		}()
+
+		return nil
+	}
+
+	err = retry(operation)
 	if err != nil {
 		return fmt.Errorf("failed to send metric: %w", err)
 	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			fmt.Printf("failed to close response body: %v", err)
-		}
-	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to send metric: status code %d", resp.StatusCode)
 	}
 
 	return nil
+}
+
+func retry(operation func() error) error {
+	const maxRetries = 3
+	retryIntervals := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	var lastErr error
+	for i := 0; i <= maxRetries; i++ {
+		if err := operation(); err != nil {
+			if isRetrievableError(err) {
+				lastErr = err
+				if i < maxRetries {
+					time.Sleep(retryIntervals[i])
+					continue
+				}
+			}
+
+			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
+}
+
+func isRetrievableError(err error) bool {
+	if errors.Is(err, http.ErrHandlerTimeout) {
+		return true
+	}
+
+	if errors.Is(err, http.ErrServerClosed) {
+		return true
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		if netErr.Op == "dial" {
+			return true
+		}
+	}
+
+	var httpErr net.Error
+	if errors.As(err, &httpErr) && httpErr.Timeout() {
+		return true
+	}
+
+	return false
 }
 
 func compress(data any) ([]byte, error) {
