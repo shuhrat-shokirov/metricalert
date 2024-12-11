@@ -1,8 +1,9 @@
 package application
 
 import (
-	"log"
 	"time"
+
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/model"
 )
@@ -45,7 +46,8 @@ func (a *Agent) Start(pollInterval, reportInterval time.Duration) {
 			// Отправка метрик на сервер каждые reportInterval
 			err := a.client.SendMetrics(metrics)
 			if err != nil {
-				log.Printf("can't send metrics: %v", err)
+				zap.L().Error("can't send metrics", zap.Error(err))
+				continue
 			}
 
 			// Сброс счетчиков каждые reportInterval

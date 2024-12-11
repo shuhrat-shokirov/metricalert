@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"metricalert/internal/server/core/model"
 	"metricalert/internal/server/core/repositories"
 )
@@ -41,32 +43,30 @@ const (
 	counterType metricType = "counter"
 )
 
-func (a *Application) UpdateMetric(ctx context.Context, metricName, metricTypeName string, value any) error {
-	if strings.TrimSpace(metricName) == "" {
+func (a *Application) UpdateMetric(ctx context.Context, metric model.MetricRequest) error {
+	if strings.TrimSpace(metric.ID) == "" {
 		return fmt.Errorf("empty metric name, error: %w", ErrNotFound)
 	}
 
-	switch metricType(metricTypeName) {
-	case gaugeType:
-		metricValue, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("can't parse gauge value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
-		}
-
-		if err := a.repo.UpdateGauge(ctx, metricName, metricValue); err != nil {
-			return fmt.Errorf("failed to update gauge: %w", err)
-		}
+	switch metricType(metric.MType) {
 	case counterType:
-		metricValue, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("can't parse counter value, type: %T, value: %v, error: %w", value, value, ErrBadRequest)
+		if metric.Delta == nil {
+			return fmt.Errorf("delta is nil on counter metric, error: %w", ErrBadRequest)
 		}
 
-		if err := a.repo.UpdateCounter(ctx, metricName, metricValue); err != nil {
+		if err := a.repo.UpdateCounter(ctx, metric.ID, *metric.Delta); err != nil {
 			return fmt.Errorf("failed to update counter: %w", err)
 		}
+	case gaugeType:
+		if metric.Value == nil {
+			return fmt.Errorf("value is nil on gauge metric, error: %w", ErrBadRequest)
+		}
+
+		if err := a.repo.UpdateGauge(ctx, metric.ID, *metric.Value); err != nil {
+			return fmt.Errorf("failed to update gauge: %w", err)
+		}
 	default:
-		return fmt.Errorf("unknown metric type, value: %s, error: %w", metricTypeName, ErrBadRequest)
+		return fmt.Errorf("unknown metric type, value: %s, error: %w", metric.MType, ErrBadRequest)
 	}
 
 	return nil
@@ -130,16 +130,43 @@ func (a *Application) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (a *Application) UpdateMetrics(ctx context.Context,
-	gaugeList map[string]float64, counterList map[string]int64) error {
-	if len(gaugeList) > 0 {
-		if err := a.repo.UpdateGauges(ctx, gaugeList); err != nil {
+func (a *Application) UpdateMetrics(ctx context.Context, metrics []model.MetricRequest) error {
+	var (
+		gaugeMetricList   = map[string]float64{}
+		counterMetricList = map[string]int64{}
+	)
+
+	for _, r := range metrics {
+		switch metricType(r.MType) {
+		case counterType:
+			if r.Delta == nil {
+				zap.L().Warn("delta is nil on counter metric", zap.String("id", r.ID))
+				continue
+			}
+
+			counterMetricList[r.ID] += *r.Delta
+		case gaugeType:
+			if r.Value == nil {
+				zap.L().Warn("value is nil on gauge metric", zap.String("id", r.ID))
+				continue
+			}
+
+			gaugeMetricList[r.ID] = *r.Value
+
+		default:
+			zap.L().Warn("unknown metric type", zap.String("type", r.MType))
+			continue
+		}
+	}
+
+	if len(gaugeMetricList) > 0 {
+		if err := a.repo.UpdateGauges(ctx, gaugeMetricList); err != nil {
 			return fmt.Errorf("failed to update gauges: %w", err)
 		}
 	}
 
-	if len(counterList) > 0 {
-		if err := a.repo.UpdateCounters(ctx, counterList); err != nil {
+	if len(counterMetricList) > 0 {
+		if err := a.repo.UpdateCounters(ctx, counterMetricList); err != nil {
 			return fmt.Errorf("failed to update counters: %w", err)
 		}
 	}

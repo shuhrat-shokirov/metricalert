@@ -21,8 +21,8 @@ import (
 )
 
 type ServerService interface {
-	UpdateMetric(ctx context.Context, metricName, metricType string, value any) error
-	UpdateMetrics(ctx context.Context, gaugeList map[string]float64, counterList map[string]int64) error
+	UpdateMetric(ctx context.Context, request model.MetricRequest) error
+	UpdateMetrics(ctx context.Context, request []model.MetricRequest) error
 	GetMetric(ctx context.Context, metricName, metricType string) (string, error)
 	GetMetrics(ctx context.Context) ([]model.MetricData, error)
 	Ping(ctx context.Context) error
@@ -135,7 +135,10 @@ func (h *handler) update(ginCtx *gin.Context) {
 		metricValue = ginCtx.Param("value")
 	)
 
-	var value any
+	request := model.MetricRequest{
+		ID:    metricName,
+		MType: metricType,
+	}
 
 	switch metricType {
 	case counterType:
@@ -146,7 +149,9 @@ func (h *handler) update(ginCtx *gin.Context) {
 			return
 		}
 
-		value = int64(v)
+		value := int64(v)
+
+		request.Delta = &value
 	case gaugeType:
 		v, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
@@ -155,14 +160,14 @@ func (h *handler) update(ginCtx *gin.Context) {
 			return
 		}
 
-		value = v
+		request.Value = &v
 	default:
 		h.sugar.Errorf("unknown metric type: %s", metricType)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	err := h.server.UpdateMetric(context.Background(), metricName, metricType, value)
+	err := h.server.UpdateMetric(context.TODO(), request)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -180,7 +185,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 }
 
 func (h *handler) updateWithBody(ginCtx *gin.Context) {
-	var metric metrics
+	var metric model.MetricRequest
 
 	err := ginCtx.BindJSON(&metric)
 	if err != nil {
@@ -189,31 +194,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		return
 	}
 
-	var value any
-	switch metric.MType {
-	case counterType:
-		if metric.Delta == nil {
-			h.sugar.Errorf("delta is nil on counter metric")
-			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		value = *metric.Delta
-	case gaugeType:
-		if metric.Value == nil {
-			h.sugar.Errorf("value is nil on gauge metric")
-			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		value = *metric.Value
-	default:
-		h.sugar.Errorf("unknown metric type: %s", metric.MType)
-		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	err = h.server.UpdateMetric(context.Background(), metric.ID, metric.MType, value)
+	err = h.server.UpdateMetric(context.TODO(), metric)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -230,20 +211,13 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 }
 
-type metrics struct {
-	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
-	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
-	ID    string   `json:"id"`              // имя метрики
-	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
-}
-
 func (h *handler) get(ginCtx *gin.Context) {
 	var (
 		metricType = ginCtx.Param("type")
 		metricName = ginCtx.Param("name")
 	)
 
-	value, err := h.server.GetMetric(context.Background(), metricName, metricType)
+	value, err := h.server.GetMetric(context.TODO(), metricName, metricType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -267,7 +241,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 }
 
 func (h *handler) getMetricValue(ginCtx *gin.Context) {
-	var request metrics
+	var request model.MetricRequest
 
 	err := ginCtx.BindJSON(&request)
 	if err != nil {
@@ -276,7 +250,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		return
 	}
 
-	value, err := h.server.GetMetric(context.Background(), request.ID, request.MType)
+	value, err := h.server.GetMetric(context.TODO(), request.ID, request.MType)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):
@@ -290,7 +264,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		return
 	}
 
-	response := metrics{
+	response := model.MetricRequest{
 		ID:    request.ID,
 		MType: request.MType,
 	}
@@ -338,7 +312,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 func (h *handler) metrics(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 
-	metrics, err := h.server.GetMetrics(context.Background())
+	metrics, err := h.server.GetMetrics(context.TODO())
 	if err != nil {
 		h.sugar.Errorf("failed to get metrics: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
@@ -457,7 +431,7 @@ const (
 )
 
 func (h *handler) batchUpdate(ginCtx *gin.Context) {
-	var request []metrics
+	var request []model.MetricRequest
 
 	err := ginCtx.BindJSON(&request)
 	if err != nil {
@@ -466,35 +440,7 @@ func (h *handler) batchUpdate(ginCtx *gin.Context) {
 		return
 	}
 
-	var (
-		gaugeMetricList   = map[string]float64{}
-		counterMetricList = map[string]int64{}
-	)
-
-	for _, r := range request {
-		switch r.MType {
-		case counterType:
-			if r.Delta == nil {
-				h.sugar.Errorf("delta is nil on counter metric, id: %s", r.ID)
-				continue
-			}
-
-			counterMetricList[r.ID] += *r.Delta
-		case gaugeType:
-			if r.Value == nil {
-				h.sugar.Errorf("value is nil on gauge metric, id: %s", r.ID)
-				continue
-			}
-
-			gaugeMetricList[r.ID] = *r.Value
-
-		default:
-			h.sugar.Errorf("unknown metric type: %s", r.MType)
-			continue
-		}
-	}
-
-	err = h.server.UpdateMetrics(context.Background(), gaugeMetricList, counterMetricList)
+	err = h.server.UpdateMetrics(context.TODO(), request)
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrBadRequest):

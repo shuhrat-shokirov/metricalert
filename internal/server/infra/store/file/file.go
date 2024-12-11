@@ -3,13 +3,13 @@ package file
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/infra/store/memory"
 )
@@ -42,8 +42,8 @@ func NewStore(conf *Config) (*Store, error) {
 
 	go func() {
 		for range s.ticker.C {
-			if err := s.saveToFile(context.Background()); err != nil {
-				log.Printf("can't save to file: %v", err)
+			if err := s.saveToFile(context.TODO()); err != nil {
+				zap.L().Error("can't save to file", zap.Error(err))
 			}
 		}
 	}()
@@ -163,7 +163,7 @@ func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 func (s *Store) Close() error {
 	s.ticker.Stop()
 
-	err := s.saveToFile(context.Background())
+	err := s.saveToFile(context.TODO())
 	if err != nil {
 		return fmt.Errorf("can't save to file: %w", err)
 	}
@@ -195,5 +195,5 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 }
 
 func (s *Store) Ping(_ context.Context) error {
-	return errors.New("not implemented")
+	return nil
 }

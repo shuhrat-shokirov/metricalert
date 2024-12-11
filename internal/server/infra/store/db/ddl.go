@@ -10,7 +10,7 @@ import (
 func createTables(ctx context.Context, pool *pgxpool.Pool) error {
 	gaugeTable := `
     CREATE TABLE IF NOT EXISTS gauge_metrics (
-        id SERIAL PRIMARY KEY,
+        id GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name TEXT NOT NULL,
         value DOUBLE PRECISION NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -20,7 +20,7 @@ func createTables(ctx context.Context, pool *pgxpool.Pool) error {
 
 	counterTable := `
     CREATE TABLE IF NOT EXISTS counter_metrics (
-        id SERIAL PRIMARY KEY,
+        id GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name TEXT NOT NULL,
         value BIGINT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -28,12 +28,23 @@ func createTables(ctx context.Context, pool *pgxpool.Pool) error {
         CONSTRAINT counter_metrics_name_key UNIQUE (name)
     );`
 
-	if _, err := pool.Exec(ctx, gaugeTable); err != nil {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("err starting transaction: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, gaugeTable); err != nil {
+		_ = tx.Rollback(ctx)
 		return fmt.Errorf("err creating gauge_metrics table: %w", err)
 	}
 
-	if _, err := pool.Exec(ctx, counterTable); err != nil {
+	if _, err := tx.Exec(ctx, counterTable); err != nil {
+		_ = tx.Rollback(ctx)
 		return fmt.Errorf("err creating counter_metrics table: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("err committing transaction: %w", err)
 	}
 
 	return nil

@@ -2,7 +2,6 @@ package memory
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"metricalert/internal/server/core/repositories"
@@ -108,5 +107,5 @@ func (s *Store) Close() error {
 }
 
 func (s *Store) Ping(_ context.Context) error {
-	return errors.New("not implemented")
+	return nil
 }

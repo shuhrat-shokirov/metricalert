@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.uber.org/zap"
+
 	"metricalert/internal/server/core/model"
 )
 
@@ -81,7 +83,7 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 		resp   *http.Response
 	)
 
-	operation := func() error {
+	err = retry(func() error {
 		resp, err = client.Do(req)
 		if err != nil {
 			return fmt.Errorf("failed to send metric: %w", err)
@@ -89,14 +91,12 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 		defer func() {
 			err := resp.Body.Close()
 			if err != nil {
-				fmt.Printf("failed to close response body: %v", err)
+				zap.L().Error("can't close response body", zap.Error(err))
 			}
 		}()
 
 		return nil
-	}
-
-	err = retry(operation)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to send metric: %w", err)
 	}
@@ -114,18 +114,20 @@ func retry(operation func() error) error {
 
 	var lastErr error
 	for i := 0; i <= maxRetries; i++ {
-		if err := operation(); err != nil {
-			if isRetrievableError(err) {
-				lastErr = err
-				if i < maxRetries {
-					time.Sleep(retryIntervals[i])
-					continue
-				}
-			}
+		err := operation()
+		if err == nil {
+			return nil
+		}
 
+		if !isRetrievableError(err) {
 			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, err)
 		}
-		return nil
+
+		lastErr = err
+		if i < maxRetries {
+			time.Sleep(retryIntervals[i])
+			continue
+		}
 	}
 
 	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)

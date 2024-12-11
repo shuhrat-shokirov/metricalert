@@ -11,8 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"metricalert/internal/server/core/repositories"
+	"go.uber.org/zap"
 )
 
 type Store struct {
@@ -20,17 +19,18 @@ type Store struct {
 }
 
 func New(dsn string) (*Store, error) {
-	pool, err := pgxpool.New(context.Background(), dsn)
+	ctx := context.TODO()
+	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("can't create pool: %w", err)
 	}
 
-	err = pool.Ping(context.Background())
+	err = pool.Ping(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("can't ping: %w", err)
 	}
 
-	if err = createTables(context.Background(), pool); err != nil {
+	if err = createTables(ctx, pool); err != nil {
 		return nil, fmt.Errorf("can't create tables: %w", err)
 	}
 
@@ -44,16 +44,14 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 		ON CONFLICT on constraint gauge_metrics_name_key DO 
 		    UPDATE SET value = $2, updated_at = now();`
 
-	operation := func() error {
+	return retry(func() error {
 		_, err := s.pool.Exec(ctx, query, name, value)
 		if err != nil {
 			return fmt.Errorf("can't exec: %w", err)
 		}
 
 		return nil
-	}
-
-	return retry(operation)
+	})
 }
 
 func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
@@ -72,20 +70,18 @@ func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) err
 	br := s.pool.SendBatch(ctx, batch)
 	defer func() {
 		if err := br.Close(); err != nil {
-			fmt.Println("can't close batch: %w", err)
+			zap.L().Error("can't close batch", zap.Error(err))
 		}
 	}()
 
-	operation := func() error {
+	return retry(func() error {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("can't exec: %w", err)
 		}
 
 		return nil
-	}
-
-	return retry(operation)
+	})
 }
 
 func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
@@ -95,16 +91,14 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 		ON CONFLICT on constraint counter_metrics_name_key DO 
 		    UPDATE SET value = counter_metrics.value + $2, updated_at = now();`
 
-	operation := func() error {
+	return retry(func() error {
 		_, err := s.pool.Exec(ctx, query, name, value)
 		if err != nil {
 			return fmt.Errorf("can't exec: %w", err)
 		}
 
 		return nil
-	}
-
-	return retry(operation)
+	})
 }
 
 func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
@@ -123,20 +117,18 @@ func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) e
 	br := s.pool.SendBatch(ctx, batch)
 	defer func() {
 		if err := br.Close(); err != nil {
-			fmt.Println("can't close batch: %w", err)
+			zap.L().Error("can't close batch", zap.Error(err))
 		}
 	}()
 
-	operation := func() error {
+	return retry(func() error {
 		_, err := br.Exec()
 		if err != nil {
 			return fmt.Errorf("can't exec: %w", err)
 		}
 
 		return nil
-	}
-
-	return retry(operation)
+	})
 }
 
 func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
@@ -148,11 +140,9 @@ func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 	var value float64
 	row := s.pool.QueryRow(ctx, query, name)
 
-	operation := func() error {
+	return value, retry(func() error {
 		return row.Scan(&value)
-	}
-
-	return value, retry(operation)
+	})
 }
 
 func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
@@ -164,11 +154,9 @@ func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 	var value int64
 	row := s.pool.QueryRow(ctx, query, name)
 
-	operation := func() error {
+	return value, retry(func() error {
 		return row.Scan(&value)
-	}
-
-	return value, retry(operation)
+	})
 }
 
 func (s *Store) Close() error {
@@ -183,7 +171,7 @@ func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 
 	result := make(map[string]float64)
 
-	operation := func() error {
+	return result, retry(func() error {
 		rows, err := s.pool.Query(ctx, query)
 		if err != nil {
 			return fmt.Errorf("can't query: %w", err)
@@ -200,9 +188,7 @@ func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 		}
 
 		return nil
-	}
-
-	return result, retry(operation)
+	})
 }
 
 func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
@@ -212,7 +198,7 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 
 	result := make(map[string]int64)
 
-	operation := func() error {
+	return result, retry(func() error {
 		rows, err := s.pool.Query(ctx, query)
 		if err != nil {
 			return fmt.Errorf("can't query: %w", err)
@@ -229,9 +215,7 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 		}
 
 		return nil
-	}
-
-	return result, retry(operation)
+	})
 }
 
 func (s *Store) Ping(ctx context.Context) error {
@@ -260,22 +244,20 @@ func retry(operation func() error) error {
 
 	var lastErr error
 	for i := 0; i <= maxRetries; i++ {
-		if err := operation(); err != nil {
-			if isRetrievableError(err) {
-				lastErr = err
-				if i < maxRetries {
-					time.Sleep(retryIntervals[i])
-					continue
-				}
-			}
+		err := operation()
+		if err == nil {
+			return nil
+		}
 
-			if errors.Is(err, pgx.ErrNoRows) {
-				return repositories.ErrNotFound
-			}
-
+		if !isRetrievableError(err) {
 			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, err)
 		}
-		return nil
+
+		lastErr = err
+		if i < maxRetries {
+			time.Sleep(retryIntervals[i])
+			continue
+		}
 	}
 
 	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
