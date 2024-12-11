@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
+
+	"metricalert/internal/server/core/repositories"
 )
 
 type Store struct {
@@ -247,6 +249,10 @@ func retry(operation func() error) error {
 		err := operation()
 		if err == nil {
 			return nil
+		}
+
+		if errors.Is(err, pgx.ErrNoRows) {
+			return repositories.ErrNotFound
 		}
 
 		if !isRetrievableError(err) {
