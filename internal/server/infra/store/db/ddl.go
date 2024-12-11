@@ -10,7 +10,7 @@ import (
 func createTables(ctx context.Context, pool *pgxpool.Pool) error {
 	gaugeTable := `
     CREATE TABLE IF NOT EXISTS gauge_metrics (
-        id GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name TEXT NOT NULL,
         value DOUBLE PRECISION NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
@@ -20,7 +20,7 @@ func createTables(ctx context.Context, pool *pgxpool.Pool) error {
 
 	counterTable := `
     CREATE TABLE IF NOT EXISTS counter_metrics (
-        id GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+        id  BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         name TEXT NOT NULL,
         value BIGINT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
