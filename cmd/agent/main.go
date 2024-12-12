@@ -10,6 +10,7 @@ import (
 
 type configParams struct {
 	Addr           string `env:"ADDRESS"`
+	HashKey        string `env:"KEY"`
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 }
@@ -31,6 +32,7 @@ func main() {
 	serverAddr := flag.String("a", defaultAddr, "server address")
 	report := flag.Int64("r", defaultReportInterval, "report interval")
 	poll := flag.Int64("p", defaultPollInterval, "poll interval")
+	hashKey := flag.String("k", "", "hash key")
 	flag.Parse()
 
 	if defaultParams.Addr != "" {
@@ -45,9 +47,9 @@ func main() {
 		poll = &defaultParams.PollInterval
 	}
 
-	reportInterval := time.Duration(*report) * time.Second
-	pollInterval := time.Duration(*poll) * time.Second
-	addr := *serverAddr
+	if defaultParams.HashKey != "" {
+		hashKey = &defaultParams.HashKey
+	}
 
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
@@ -56,5 +58,10 @@ func main() {
 		}
 	})
 
-	run(addr, reportInterval, pollInterval)
+	run(config{
+		addr:           *serverAddr,
+		reportInterval: time.Duration(*report) * time.Second,
+		pollInterval:   time.Duration(*poll) * time.Second,
+		hashKey:        *hashKey,
+	})
 }

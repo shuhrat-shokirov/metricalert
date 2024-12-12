@@ -19,12 +19,13 @@ type config struct {
 	logger        zap.SugaredLogger
 	fileStorePath string
 	databaseDsn   string
+	hashKey       string
 	port          int64
 	storeInterval int
 	restore       bool
 }
 
-func run(conf config) error {
+func run(conf *config) error {
 	var (
 		newStore store.Store
 		err      error
@@ -54,7 +55,12 @@ func run(conf config) error {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(newApplication, conf.port, conf.logger)
+	api := rest.NewServerAPI(rest.Config{
+		Server:  newApplication,
+		Port:    conf.port,
+		Logger:  conf.logger,
+		HashKey: conf.hashKey,
+	})
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
