@@ -1,13 +1,15 @@
 package file
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"metricalert/internal/server/infra/store/memory"
 )
@@ -40,8 +42,8 @@ func NewStore(conf *Config) (*Store, error) {
 
 	go func() {
 		for range s.ticker.C {
-			if err := s.saveToFile(); err != nil {
-				log.Printf("can't save to file: %v", err)
+			if err := s.saveToFile(context.TODO()); err != nil {
+				zap.L().Error("can't save to file", zap.Error(err))
 			}
 		}
 	}()
@@ -67,8 +69,8 @@ type metric struct {
 	Counters map[string]int64   `json:"counters"`
 }
 
-func (s *Store) UpdateGauge(name string, value float64) error {
-	err := s.Store.UpdateGauge(name, value)
+func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) error {
+	err := s.Store.UpdateGauge(ctx, name, value)
 	if err != nil {
 		return fmt.Errorf("can't update gauge: %w", err)
 	}
@@ -76,13 +78,32 @@ func (s *Store) UpdateGauge(name string, value float64) error {
 	return nil
 }
 
-func (s *Store) saveToFile() error {
+func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
+	err := s.Store.UpdateGauges(ctx, gauges)
+	if err != nil {
+		return fmt.Errorf("can't update gauges: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) saveToFile(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	gaugeList, err := s.GetGaugeList(ctx)
+	if err != nil {
+		return fmt.Errorf("can't get gauge list: %w", err)
+	}
+
+	counterList, err := s.GetCounterList(ctx)
+	if err != nil {
+		return fmt.Errorf("can't get counter list: %w", err)
+	}
+
 	metrics := metric{
-		Gauges:   s.GetGaugeList(),
-		Counters: s.GetCounterList(),
+		Gauges:   gaugeList,
+		Counters: counterList,
 	}
 
 	bytes, err := json.Marshal(metrics)
@@ -103,8 +124,8 @@ func (s *Store) saveToFile() error {
 	return nil
 }
 
-func (s *Store) UpdateCounter(name string, value int64) error {
-	err := s.Store.UpdateCounter(name, value)
+func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
+	err := s.Store.UpdateCounter(ctx, name, value)
 	if err != nil {
 		return fmt.Errorf("can't update counter: %w", err)
 	}
@@ -112,8 +133,17 @@ func (s *Store) UpdateCounter(name string, value int64) error {
 	return nil
 }
 
-func (s *Store) GetGauge(name string) (float64, error) {
-	value, err := s.Store.GetGauge(name)
+func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
+	err := s.Store.UpdateCounters(ctx, counters)
+	if err != nil {
+		return fmt.Errorf("can't update counters: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
+	value, err := s.Store.GetGauge(ctx, name)
 	if err != nil {
 		return 0, fmt.Errorf("can't get gauge: %w", err)
 	}
@@ -121,8 +151,8 @@ func (s *Store) GetGauge(name string) (float64, error) {
 	return value, nil
 }
 
-func (s *Store) GetCounter(name string) (int64, error) {
-	value, err := s.Store.GetCounter(name)
+func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
+	value, err := s.Store.GetCounter(ctx, name)
 	if err != nil {
 		return 0, fmt.Errorf("can't get counter: %w", err)
 	}
@@ -133,7 +163,7 @@ func (s *Store) GetCounter(name string) (int64, error) {
 func (s *Store) Close() error {
 	s.ticker.Stop()
 
-	err := s.saveToFile()
+	err := s.saveToFile(context.TODO())
 	if err != nil {
 		return fmt.Errorf("can't save to file: %w", err)
 	}
@@ -146,10 +176,24 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) GetGaugeList() map[string]float64 {
-	return s.Store.GetGaugeList()
+func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
+	gaugeList, err := s.Store.GetGaugeList(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("can't get gauge list: %w", err)
+	}
+
+	return gaugeList, nil
 }
 
-func (s *Store) GetCounterList() map[string]int64 {
-	return s.Store.GetCounterList()
+func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
+	counterList, err := s.Store.GetCounterList(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("can't get counter list: %w", err)
+	}
+
+	return counterList, nil
+}
+
+func (s *Store) Ping(_ context.Context) error {
+	return nil
 }

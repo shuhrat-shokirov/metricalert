@@ -13,6 +13,7 @@ import (
 type configParams struct {
 	Addr          string `env:"ADDRESS"`
 	FileStorePath string `env:"FILE_STORE_PATH"`
+	DatabaseDsn   string `env:"DATABASE_DSN"`
 	StoreInterval int    `env:"STORE_INTERVAL" envDefault:"-1"`
 	Restore       bool   `env:"RESTORE"`
 }
@@ -36,6 +37,7 @@ func main() {
 	storeInterval := flag.Int("i", defaultStoreInterval, "store interval")
 	fileStorePath := flag.String("f", defaultFileStorePath, "file store path")
 	restore := flag.Bool("r", defaultRestore, "restore")
+	dataBaseDsn := flag.String("d", "", "database dsn")
 
 	flag.Parse()
 
@@ -53,6 +55,10 @@ func main() {
 
 	if defaultParams.Restore {
 		restore = &defaultParams.Restore
+	}
+
+	if defaultParams.DatabaseDsn != "" {
+		dataBaseDsn = &defaultParams.DatabaseDsn
 	}
 
 	portService := func() int64 {
@@ -94,6 +100,7 @@ func main() {
 		fileStorePath: *fileStorePath,
 		restore:       *restore,
 		logger:        *logger.Sugar(),
+		databaseDsn:   *dataBaseDsn,
 	}); err != nil {
 		logger.Fatal("can't run server", zap.Error(err))
 	}

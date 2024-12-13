@@ -3,14 +3,21 @@ package client
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
+
+	"metricalert/internal/server/core/model"
 )
 
 type Client interface {
-	SendMetric(metricName, metricType string, value interface{}) error
+	SendMetrics(metrics []model.Metric) error
 }
 
 type handler struct {
@@ -28,30 +35,35 @@ func NewClient(addr string) Client {
 	return &handler{addr: addr}
 }
 
-func (c *handler) SendMetric(metricName, metricType string, value any) error {
-	url := fmt.Sprintf("http://%s/update/", c.addr)
+func (c *handler) SendMetrics(list []model.Metric) error {
+	url := fmt.Sprintf("http://%s/updates/", c.addr)
 
-	var metric = metrics{
-		ID:    metricName,
-		MType: metricType,
+	request := make([]metrics, 0, len(list))
+	for _, metric := range list {
+		var m = metrics{
+			ID:    metric.Name,
+			MType: metric.Type,
+		}
+
+		switch metric.Type {
+		case "counter":
+			v, ok := metric.Value.(int64)
+			if !ok {
+				return fmt.Errorf("invalid counter value type, type: %T, value: %v", metric.Value, metric.Value)
+			}
+			m.Delta = &v
+		case "gauge":
+			v, ok := metric.Value.(float64)
+			if !ok {
+				return fmt.Errorf("invalid gauge value type, type: %T, value: %v", metric.Value, metric.Value)
+			}
+			m.Value = &v
+		}
+
+		request = append(request, m)
 	}
 
-	switch metricType {
-	case "counter":
-		v, ok := value.(int64)
-		if !ok {
-			return fmt.Errorf("invalid counter value type, type: %T, value: %v", value, value)
-		}
-		metric.Delta = &v
-	case "gauge":
-		v, ok := value.(float64)
-		if !ok {
-			return fmt.Errorf("invalid gauge value type, type: %T, value: %v", value, value)
-		}
-		metric.Value = &v
-	}
-
-	byteData, err := compress(metric)
+	byteData, err := compress(request)
 	if err != nil {
 		return fmt.Errorf("failed to compress data: %w", err)
 	}
@@ -66,24 +78,87 @@ func (c *handler) SendMetric(metricName, metricType string, value any) error {
 
 	const timeout = 5 * time.Second
 
-	client := &http.Client{Timeout: timeout}
+	var (
+		client = &http.Client{Timeout: timeout}
+		resp   *http.Response
+	)
 
-	resp, err := client.Do(req)
+	err = retry(func() error {
+		resp, err = client.Do(req)
+		if err != nil {
+			return fmt.Errorf("failed to send metric: %w", err)
+		}
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				zap.L().Error("can't close response body", zap.Error(err))
+			}
+		}()
+
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to send metric: %w", err)
 	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			fmt.Printf("failed to close response body: %v", err)
-		}
-	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to send metric: status code %d", resp.StatusCode)
 	}
 
 	return nil
+}
+
+func retry(operation func() error) error {
+	const maxRetries = 3
+	retryIntervals := []time.Duration{1 * time.Second, 3 * time.Second, 5 * time.Second}
+
+	var lastErr error
+	for i := 0; i <= maxRetries; i++ {
+		err := operation()
+		if err == nil {
+			return nil
+		}
+
+		if !isRetrievableError(err) {
+			return fmt.Errorf("operation failed after %d retries: %w", maxRetries, err)
+		}
+
+		lastErr = err
+		if i < maxRetries {
+			time.Sleep(retryIntervals[i])
+			continue
+		}
+	}
+
+	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
+}
+
+func isRetrievableError(err error) bool {
+	if errors.Is(err, http.ErrHandlerTimeout) {
+		return true
+	}
+
+	if errors.Is(err, http.ErrServerClosed) {
+		return true
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		if netErr.Op == "dial" {
+			return true
+		}
+	}
+
+	var httpErr net.Error
+	if errors.As(err, &httpErr) && httpErr.Timeout() {
+		return true
+	}
+
+	return false
 }
 
 func compress(data any) ([]byte, error) {

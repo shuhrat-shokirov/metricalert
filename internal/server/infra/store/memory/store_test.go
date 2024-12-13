@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestMemStorage_UpdateGauge1(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := s.UpdateGauge(tt.args.name, tt.args.value)
+			err := s.UpdateGauge(context.Background(), tt.args.name, tt.args.value)
 			assert.Nil(t, err)
 			assert.Equal(t, tt.want, s.gauges[tt.args.name])
 		})
@@ -103,7 +104,7 @@ func TestMemStorage_UpdateCounter(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := s.UpdateCounter(tt.args.name, tt.args.value)
+			err := s.UpdateCounter(context.Background(), tt.args.name, tt.args.value)
 			assert.Nil(t, err)
 
 			if tt.wantErr {
