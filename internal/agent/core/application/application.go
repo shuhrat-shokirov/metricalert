@@ -51,7 +51,7 @@ func (a *Agent) Start(conf Config) {
 
 	var wg sync.WaitGroup
 
-	for i := 0; i < int(conf.RateLimit); i++ {
+	for range conf.RateLimit {
 		wg.Add(1)
 		go a.worker(ctx, &wg, metricsChan)
 	}

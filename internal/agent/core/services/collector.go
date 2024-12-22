@@ -66,7 +66,9 @@ func (c *Collector) CollectMetrics() []model.Metric {
 }
 
 func (c *Collector) CollectMemoryMetrics() []model.Metric {
-	metrics := make([]model.Metric, 0, 3)
+	const metricCount = 3
+
+	metrics := make([]model.Metric, 0, metricCount)
 
 	vmem, err := mem.VirtualMemory()
 	if err == nil {
