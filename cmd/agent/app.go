@@ -13,6 +13,7 @@ type config struct {
 	hashKey        string
 	reportInterval time.Duration
 	pollInterval   time.Duration
+	rateLimit      int64
 }
 
 func run(conf config) {
@@ -21,5 +22,9 @@ func run(conf config) {
 
 	agent := application.NewApplication(newClient, collector)
 
-	agent.Start(conf.pollInterval, conf.reportInterval)
+	agent.Start(application.Config{
+		PoolInterval:   conf.pollInterval,
+		ReportInterval: conf.reportInterval,
+		RateLimit:      conf.rateLimit,
+	})
 }
