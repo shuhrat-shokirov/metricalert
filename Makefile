@@ -15,7 +15,7 @@ _golangci-lint-run: _golangci-lint-reports-mkdir
     -w /app \
     golangci/golangci-lint:latest \
         golangci-lint run \
-            -c .golangci.yml \
+            -c .golangci.yml  --timeout 10m \
 	> ./golangci-lint/report-unformatted.json
 
 .PHONY: _golangci-lint-format-report
