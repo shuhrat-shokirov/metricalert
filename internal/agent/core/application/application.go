@@ -21,8 +21,10 @@ type Collector interface {
 }
 
 type Agent struct {
-	client    Client
-	collector Collector
+	client        Client
+	collector     Collector
+	memoryMutex   sync.Mutex
+	memoryMetrics []model.Metric
 }
 
 func NewApplication(client Client, collector Collector) *Agent {
@@ -56,28 +58,33 @@ func (a *Agent) Start(conf Config) {
 		go a.worker(ctx, &wg, metricsChan)
 	}
 
-	go func(collector Collector, ctx context.Context, a chan<- []model.Metric) {
+	go func(collector Collector, ctx context.Context) {
 		for {
 			select {
 			case <-poll.C:
-				metrics := collector.CollectMemoryMetrics()
-				a <- metrics
-			case <-ticker.C:
-				metrics := collector.CollectMemoryMetrics()
-				a <- metrics
+				memoryMetrics := collector.CollectMemoryMetrics()
+
+				a.memoryMutex.Lock()
+				a.memoryMetrics = memoryMetrics
+				a.memoryMutex.Unlock()
 			case <-ctx.Done():
 				return
 			}
 		}
-	}(a.collector, ctx, metricsChan)
+	}(a.collector, ctx)
 
+	var metrics []model.Metric
 	for {
 		select {
 		case <-poll.C:
-			metrics := a.collector.CollectMetrics()
-			metricsChan <- metrics
+			metrics = a.collector.CollectMetrics()
 		case <-ticker.C:
-			metrics := a.collector.CollectMetrics()
+			a.memoryMutex.Lock()
+			if len(a.memoryMetrics) > 0 {
+				metrics = append(metrics, a.memoryMetrics...)
+			}
+			a.memoryMutex.Unlock()
+
 			metricsChan <- metrics
 
 			// Сброс счетчиков каждые reportInterval
