@@ -23,8 +23,8 @@ type Collector interface {
 type Agent struct {
 	client        Client
 	collector     Collector
-	memoryMutex   sync.Mutex
 	memoryMetrics []model.Metric
+	memoryMutex   sync.Mutex
 }
 
 func NewApplication(client Client, collector Collector) *Agent {
