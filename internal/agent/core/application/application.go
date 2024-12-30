@@ -24,13 +24,14 @@ type Agent struct {
 	client        Client
 	collector     Collector
 	memoryMetrics []model.Metric
-	memoryMutex   sync.Mutex
+	memoryMutex   *sync.Mutex
 }
 
 func NewApplication(client Client, collector Collector) *Agent {
 	return &Agent{
-		client:    client,
-		collector: collector,
+		client:      client,
+		collector:   collector,
+		memoryMutex: &sync.Mutex{},
 	}
 }
 
