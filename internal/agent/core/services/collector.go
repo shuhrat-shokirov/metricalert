@@ -5,6 +5,9 @@ import (
 	"runtime"
 	"sync/atomic"
 
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
+
 	"metricalert/internal/server/core/model"
 )
 
@@ -58,6 +61,29 @@ func (c *Collector) CollectMetrics() []model.Metric {
 		model.Metric{Name: "GCSys", Value: float64(memStats.GCSys), Type: "gauge"},
 		model.Metric{Name: "NumForcedGC", Value: float64(memStats.NumForcedGC), Type: "gauge"},
 		model.Metric{Name: "OtherSys", Value: float64(memStats.OtherSys), Type: "gauge"})
+
+	return metrics
+}
+
+func (c *Collector) CollectMemoryMetrics() []model.Metric {
+	const metricCount = 3
+
+	metrics := make([]model.Metric, 0, metricCount)
+
+	vmem, err := mem.VirtualMemory()
+	if err == nil {
+		metrics = append(metrics,
+			model.Metric{Name: "TotalMemory", Value: float64(vmem.Total), Type: "gauge"},
+			model.Metric{Name: "FreeMemory", Value: float64(vmem.Used), Type: "gauge"},
+		)
+	}
+
+	cpuPercent, err := cpu.Percent(0, false)
+	if err == nil {
+		metrics = append(metrics,
+			model.Metric{Name: "CPUutilization1", Value: cpuPercent[0], Type: "gauge"},
+		)
+	}
 
 	return metrics
 }

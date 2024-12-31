@@ -3,6 +3,9 @@ package rest
 import (
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,10 +35,18 @@ type API struct {
 	srv *http.Server
 }
 
-func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *API {
+type Config struct {
+	Server  ServerService
+	Logger  zap.SugaredLogger
+	HashKey string
+	Port    int64
+}
+
+func NewServerAPI(conf Config) *API {
 	h := handler{
-		server: server,
-		sugar:  sugar,
+		server:  conf.Server,
+		logger:  conf.Logger,
+		hashKey: conf.HashKey,
 	}
 
 	router := gin.New()
@@ -43,6 +54,7 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 	router.Use(h.MwLog())
 	router.Use(h.mwDecompress())
 	router.Use(h.responseGzipMiddleware())
+	router.Use(h.encryptionMiddleware())
 
 	router.POST("/update/:type/:name/:value", h.update)
 
@@ -58,11 +70,11 @@ func NewServerAPI(server ServerService, port int64, sugar zap.SugaredLogger) *AP
 
 	router.GET("/", h.metrics)
 
-	h.sugar.Infof("server started on port: %d", port)
+	h.logger.Infof("server started on port: %d", conf.Port)
 
 	return &API{
 		srv: &http.Server{
-			Addr:    fmt.Sprintf(":%d", port),
+			Addr:    fmt.Sprintf(":%d", conf.Port),
 			Handler: router,
 		},
 	}
@@ -78,7 +90,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 
 		gzipReader, err := gzip.NewReader(c.Request.Body)
 		if err != nil {
-			h.sugar.Errorf("failed to create gzip reader: %v", err)
+			h.logger.Errorf("failed to create gzip reader: %v", err)
 			c.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -86,7 +98,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 		defer func() {
 			err := gzipReader.Close()
 			if err != nil {
-				h.sugar.Errorf("failed to close gzip reader: %v", err)
+				h.logger.Errorf("failed to close gzip reader: %v", err)
 			}
 		}()
 
@@ -105,7 +117,7 @@ func (h *handler) MwLog() gin.HandlerFunc {
 
 		c.Next()
 
-		h.sugar.Infoln(
+		h.logger.Infoln(
 			"URI: ", c.Request.RequestURI,
 			"Method: ", c.Request.Method,
 			"Latency: ", time.Since(now).String(),
@@ -124,8 +136,9 @@ func (a *API) Run() error {
 }
 
 type handler struct {
-	server ServerService
-	sugar  zap.SugaredLogger
+	server  ServerService
+	logger  zap.SugaredLogger
+	hashKey string
 }
 
 func (h *handler) update(ginCtx *gin.Context) {
@@ -144,7 +157,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 	case counterType:
 		v, err := strconv.Atoi(metricValue)
 		if err != nil {
-			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", metricValue, err)
+			h.logger.Errorf("failed to parse counter, value: %s, error: %v", metricValue, err)
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -155,14 +168,14 @@ func (h *handler) update(ginCtx *gin.Context) {
 	case gaugeType:
 		v, err := strconv.ParseFloat(metricValue, 64)
 		if err != nil {
-			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", metricValue, err)
+			h.logger.Errorf("failed to parse gauge, value: %s, error: %v", metricValue, err)
 			ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 			return
 		}
 
 		request.Value = &v
 	default:
-		h.sugar.Errorf("unknown metric type: %s", metricType)
+		h.logger.Errorf("unknown metric type: %s", metricType)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -175,7 +188,7 @@ func (h *handler) update(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			h.sugar.Errorf("failed to update metric: %v", err)
+			h.logger.Errorf("failed to update metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -189,7 +202,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 
 	err := ginCtx.BindJSON(&metric)
 	if err != nil {
-		h.sugar.Errorf("failed to bind json: %v", err)
+		h.logger.Errorf("failed to bind json: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -202,7 +215,7 @@ func (h *handler) updateWithBody(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			h.sugar.Errorf("failed to update metric: %v", err)
+			h.logger.Errorf("failed to update metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -225,7 +238,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			h.sugar.Errorf("failed to get metric: %v", err)
+			h.logger.Errorf("failed to get metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -234,7 +247,7 @@ func (h *handler) get(ginCtx *gin.Context) {
 	ginCtx.Writer.WriteHeader(http.StatusOK)
 	_, err = ginCtx.Writer.WriteString(value)
 	if err != nil {
-		h.sugar.Errorf("failed to write response: %v", err)
+		h.logger.Errorf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -245,7 +258,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 	err := ginCtx.BindJSON(&request)
 	if err != nil {
-		h.sugar.Errorf("failed to bind json: %v", err)
+		h.logger.Errorf("failed to bind json: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -258,7 +271,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			h.sugar.Errorf("failed to get metric: %v", err)
+			h.logger.Errorf("failed to get metric: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
@@ -273,7 +286,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	case counterType:
 		v, err := strconv.Atoi(value)
 		if err != nil {
-			h.sugar.Errorf("failed to parse counter, value: %s, error: %v", value, err)
+			h.logger.Errorf("failed to parse counter, value: %s, error: %v", value, err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -284,7 +297,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	case gaugeType:
 		v, err := strconv.ParseFloat(value, 64)
 		if err != nil {
-			h.sugar.Errorf("failed to parse gauge, value: %s, error: %v", value, err)
+			h.logger.Errorf("failed to parse gauge, value: %s, error: %v", value, err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -294,7 +307,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 	bytes, err := json.Marshal(response)
 	if err != nil {
-		h.sugar.Errorf("failed to marshal response: %v", err)
+		h.logger.Errorf("failed to marshal response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -303,7 +316,7 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 	ginCtx.Header("Content-Type", "application/json")
 	_, err = ginCtx.Writer.Write(bytes)
 	if err != nil {
-		h.sugar.Errorf("failed to write response: %v", err)
+		h.logger.Errorf("failed to write response: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -314,7 +327,7 @@ func (h *handler) metrics(ginCtx *gin.Context) {
 
 	metrics, err := h.server.GetMetrics(context.TODO())
 	if err != nil {
-		h.sugar.Errorf("failed to get metrics: %v", err)
+		h.logger.Errorf("failed to get metrics: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -323,14 +336,14 @@ func (h *handler) metrics(ginCtx *gin.Context) {
 
 	tmpl, err := template.New("").Parse(metricsTemplate)
 	if err != nil {
-		h.sugar.Errorf("failed to parse template: %v", err)
+		h.logger.Errorf("failed to parse template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	err = tmpl.Execute(ginCtx.Writer, metrics)
 	if err != nil {
-		h.sugar.Errorf("failed to execute template: %v", err)
+		h.logger.Errorf("failed to execute template: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -378,7 +391,7 @@ func (h *handler) responseGzipMiddleware() gin.HandlerFunc {
 		defer func() {
 			err := gz.Close()
 			if err != nil {
-				h.sugar.Errorf("failed to close gzip writer: %v", err)
+				h.logger.Errorf("failed to close gzip writer: %v", err)
 			}
 		}()
 
@@ -417,7 +430,7 @@ func (w *gzipResponseWriter) Write(data []byte) (int, error) {
 func (h *handler) dbPing(ginCtx *gin.Context) {
 	err := h.server.Ping(ginCtx.Request.Context())
 	if err != nil {
-		h.sugar.Errorf("failed to ping db: %v", err)
+		h.logger.Errorf("failed to ping db: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -435,7 +448,7 @@ func (h *handler) batchUpdate(ginCtx *gin.Context) {
 
 	err := ginCtx.BindJSON(&request)
 	if err != nil {
-		h.sugar.Errorf("failed to bind json: %v", err)
+		h.logger.Errorf("failed to bind json: %v", err)
 		ginCtx.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -448,11 +461,45 @@ func (h *handler) batchUpdate(ginCtx *gin.Context) {
 		case errors.Is(err, application.ErrNotFound):
 			ginCtx.Writer.WriteHeader(http.StatusNotFound)
 		default:
-			h.sugar.Errorf("failed to update metrics: %v", err)
+			h.logger.Errorf("failed to update metrics: %v", err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return
 	}
 
 	ginCtx.Writer.WriteHeader(http.StatusOK)
+}
+
+func (h *handler) encryptionMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.hashKey == "" {
+			c.Next()
+			return
+		}
+
+		// Проверяем наличие ключа в заголовке
+		hashKey := c.GetHeader("HashSHA256")
+
+		if !checkHashKey(hashKey, h.hashKey) {
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func checkHashKey(hash string, key string) bool {
+	bytes, err := hex.DecodeString(hash)
+	if err != nil {
+		return false
+	}
+
+	h := hmac.New(sha256.New, []byte(key))
+	_, err = h.Write(bytes)
+	if err != nil {
+		return false
+	}
+
+	return hmac.Equal(h.Sum(nil), bytes)
 }

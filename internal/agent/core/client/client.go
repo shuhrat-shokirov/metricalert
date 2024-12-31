@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,7 +24,8 @@ type Client interface {
 }
 
 type handler struct {
-	addr string
+	addr    string
+	hashKey string
 }
 
 type metrics struct {
@@ -31,8 +35,11 @@ type metrics struct {
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 }
 
-func NewClient(addr string) Client {
-	return &handler{addr: addr}
+func NewClient(addr, hashKey string) Client {
+	return &handler{
+		addr:    addr,
+		hashKey: hashKey,
+	}
 }
 
 func (c *handler) SendMetrics(list []model.Metric) error {
@@ -75,6 +82,10 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
+
+	if c.hashKey != "" {
+		req.Header.Set("HashSHA256", hashRequest(byteData, c.hashKey))
+	}
 
 	const timeout = 5 * time.Second
 
@@ -176,4 +187,11 @@ func compress(data any) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+func hashRequest(data []byte, key string) string {
+	h := hmac.New(sha256.New, []byte(key))
+	h.Write(data)
+	dst := h.Sum(nil)
+	return hex.EncodeToString(dst)
 }

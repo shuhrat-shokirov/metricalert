@@ -8,11 +8,23 @@ import (
 	"metricalert/internal/agent/core/services"
 )
 
-func run(addr string, reportInterval, pollInterval time.Duration) {
-	newClient := client.NewClient(addr)
+type config struct {
+	addr           string
+	hashKey        string
+	reportInterval time.Duration
+	pollInterval   time.Duration
+	rateLimit      int64
+}
+
+func run(conf config) {
+	newClient := client.NewClient(conf.addr, conf.hashKey)
 	collector := services.NewCollector()
 
 	agent := application.NewApplication(newClient, collector)
 
-	agent.Start(pollInterval, reportInterval)
+	agent.Start(application.Config{
+		PoolInterval:   conf.pollInterval,
+		ReportInterval: conf.reportInterval,
+		RateLimit:      conf.rateLimit,
+	})
 }
