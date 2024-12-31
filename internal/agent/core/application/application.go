@@ -95,7 +95,6 @@ func (a *Agent) Start(conf Config) {
 }
 
 func (a *Agent) worker(ctx context.Context, metricsChan <-chan []model.Metric) {
-
 	for {
 		select {
 		case metrics, ok := <-metricsChan:
