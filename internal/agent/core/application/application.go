@@ -91,6 +91,8 @@ func (a *Agent) Start(conf Config) {
 			// Сброс счетчиков каждые reportInterval
 			a.collector.ResetCounters()
 		case <-ctx.Done():
+			metricsChan <- metrics
+
 			close(metricsChan)
 			wg.Wait()
 			return

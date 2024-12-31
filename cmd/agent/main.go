@@ -58,7 +58,7 @@ func main() {
 	}
 
 	if *rateLimit == 0 {
-		const defaultRateLimit = 100
+		const defaultRateLimit = 1
 		*rateLimit = defaultRateLimit
 	}
 
