@@ -57,6 +57,11 @@ func main() {
 		rateLimit = &defaultParams.RateLimit
 	}
 
+	if *rateLimit == 0 {
+		const defaultRateLimit = 100
+		*rateLimit = defaultRateLimit
+	}
+
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
 		if !flag.Parsed() {
