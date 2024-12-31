@@ -52,12 +52,7 @@ func (a *Agent) Start(conf Config) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var wg sync.WaitGroup
-
-	for range conf.RateLimit {
-		wg.Add(1)
-		go a.worker(ctx, &wg, metricsChan)
-	}
+	go a.worker(ctx, metricsChan)
 
 	go func(collector Collector, ctx context.Context) {
 		for {
@@ -94,14 +89,12 @@ func (a *Agent) Start(conf Config) {
 			metricsChan <- metrics
 
 			close(metricsChan)
-			wg.Wait()
 			return
 		}
 	}
 }
 
-func (a *Agent) worker(ctx context.Context, wg *sync.WaitGroup, metricsChan <-chan []model.Metric) {
-	defer wg.Done()
+func (a *Agent) worker(ctx context.Context, metricsChan <-chan []model.Metric) {
 
 	for {
 		select {
