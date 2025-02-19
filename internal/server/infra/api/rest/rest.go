@@ -19,6 +19,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/gin-contrib/pprof"
+
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/core/model"
 )
@@ -50,6 +52,9 @@ func NewServerAPI(conf Config) *API {
 	}
 
 	router := gin.New()
+
+	pprof.Register(router)
+
 	router.Use(gin.Recovery())
 	router.Use(h.MwLog())
 	router.Use(h.mwDecompress())

@@ -120,7 +120,7 @@ func TestMemStorage_UpdateCounter(t *testing.T) {
 func BenchmarkMemStorage_UpdateGauge1(b *testing.B) {
 	s := NewStore(&Config{})
 
-	for i := 0; i < b.N; i++ {
+	for range b.N {
 		_ = s.UpdateGauge(context.Background(), "test", 1.1)
 	}
 }
