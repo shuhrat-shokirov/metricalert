@@ -38,7 +38,7 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
-// Store интерфейс для работы с метриками
+// Store интерфейс для работы с метриками.
 type Store interface {
 	UpdateGauge(ctx context.Context, name string, value float64) error
 	UpdateGauges(ctx context.Context, gauges map[string]float64) error
@@ -52,9 +52,9 @@ type Store interface {
 	Ping(ctx context.Context) error
 }
 
-// NewStore создает новый экземпляр Store
-// В зависимости от конфигурации создается экземпляр хранилища в памяти, файловое хранилище или база данных
-// В случае, если конфигурация не передана, возвращается ошибка
+// NewStore создает новый экземпляр Store.
+// В зависимости от конфигурации создается экземпляр хранилища в памяти, файловое хранилище или база данных.
+// В случае, если конфигурация не передана, возвращается ошибка.
 func NewStore(conf Config) (Store, error) {
 	switch {
 	case conf.DB != nil:

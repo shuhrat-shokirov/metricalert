@@ -51,7 +51,6 @@ type MockRow struct {
 	mock.Mock
 }
 
-// Implement the required methods for pgx.Rows interface
 func (m *MockRow) FieldDescriptions() []pgconn.FieldDescription {
 	args := m.Called()
 	return args.Get(0).([]pgconn.FieldDescription)
@@ -158,7 +157,6 @@ type MockBatchResults struct {
 	mock.Mock
 }
 
-// Implement the required methods for pgx.BatchResults interface
 func (m *MockBatchResults) Close() error {
 	args := m.Called()
 	return args.Error(0)

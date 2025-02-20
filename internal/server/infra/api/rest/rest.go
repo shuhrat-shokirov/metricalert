@@ -28,7 +28,7 @@ import (
 	"metricalert/internal/server/core/model"
 )
 
-// ServerService интерфейс для работы с сервером
+// ServerService интерфейс для работы с сервером.
 type ServerService interface {
 	UpdateMetric(ctx context.Context, request model.MetricRequest) error
 	UpdateMetrics(ctx context.Context, request []model.MetricRequest) error
@@ -37,12 +37,12 @@ type ServerService interface {
 	Ping(ctx context.Context) error
 }
 
-// API структура для работы с сервером
+// API структура для работы с сервером.
 type API struct {
 	srv *http.Server
 }
 
-// Config структура конфигурации сервера
+// Config структура конфигурации сервера.
 type Config struct {
 	Server  ServerService
 	Logger  zap.SugaredLogger
@@ -50,7 +50,7 @@ type Config struct {
 	Port    int64
 }
 
-// NewServerAPI создает новый сервер
+// NewServerAPI создает новый сервер.
 func NewServerAPI(conf Config) *API {
 	h := handler{
 		server:  conf.Server,

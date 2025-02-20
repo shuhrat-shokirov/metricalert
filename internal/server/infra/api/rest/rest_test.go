@@ -1,3 +1,4 @@
+//nolint:wrapcheck,nolintlint,gocritic,errcheck,dupl,forcetypeassert
 package rest
 
 import (
@@ -18,7 +19,6 @@ import (
 	"metricalert/internal/server/core/model"
 )
 
-// MockServerService is a mock implementation of the ServerService interface
 type MockServerService struct {
 	mock.Mock
 }

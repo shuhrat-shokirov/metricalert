@@ -1,3 +1,4 @@
+//nolint:dupl,nolintlint,gocritic
 package db
 
 import (

@@ -5,7 +5,7 @@ import (
 	"metricalert/internal/server/infra/store/file"
 )
 
-// Config инициализация конфигурации для хранилища
+// Config инициализация конфигурации для хранилища.
 type Config struct {
 	File *file.Config
 	DB   *db.Config

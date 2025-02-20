@@ -82,9 +82,7 @@ func TestNewStore(t *testing.T) {
 
 		assert.NotNil(t, store2)
 		assert.NoError(t, err)
-
 	}
-
 }
 
 func testInitModule() (*Store, string) {
