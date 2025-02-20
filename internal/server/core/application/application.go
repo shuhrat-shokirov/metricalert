@@ -1,3 +1,6 @@
+// Модуль application реализует бизнес-логику приложения.
+// В данном модуле находятся методы для работы с метриками.
+
 package application
 
 import (
@@ -13,6 +16,7 @@ import (
 	"metricalert/internal/server/core/repositories"
 )
 
+// Repo предоставляет методы для работы с метриками.
 type Repo interface {
 	UpdateGauge(ctx context.Context, name string, value float64) error
 	UpdateGauges(ctx context.Context, gauges map[string]float64) error
@@ -26,10 +30,12 @@ type Repo interface {
 	Ping(ctx context.Context) error
 }
 
+// Application структура принимает репозиторий и реализует методы для работы с метриками.
 type Application struct {
 	repo Repo
 }
 
+// NewApplication создает новый экземпляр Application.
 func NewApplication(repo Repo) *Application {
 	return &Application{
 		repo: repo,
@@ -43,6 +49,8 @@ const (
 	counterType metricType = "counter"
 )
 
+// UpdateMetric обновляет метрику.
+// Принимает тип метрики counter или gauge.
 func (a *Application) UpdateMetric(ctx context.Context, metric model.MetricRequest) error {
 	if strings.TrimSpace(metric.ID) == "" {
 		return fmt.Errorf("empty metric name, error: %w", ErrNotFound)
@@ -72,11 +80,14 @@ func (a *Application) UpdateMetric(ctx context.Context, metric model.MetricReque
 	return nil
 }
 
+// Объявление ошибок.
 var (
 	ErrBadRequest = errors.New("bad request")
 	ErrNotFound   = errors.New("not found")
 )
 
+// GetMetric возвращает значение метрики.
+// Принимает тип метрики counter или gauge.
 func (a *Application) GetMetric(ctx context.Context, metricName, metricType string) (string, error) {
 	switch metricType {
 	case "gauge":
@@ -104,6 +115,7 @@ func (a *Application) GetMetric(ctx context.Context, metricName, metricType stri
 	}
 }
 
+// GetMetrics возвращает список метрик.
 func (a *Application) GetMetrics(ctx context.Context) ([]model.MetricData, error) {
 	gaugeList, err := a.repo.GetGaugeList(ctx)
 	if err != nil {
@@ -121,6 +133,7 @@ func (a *Application) GetMetrics(ctx context.Context) ([]model.MetricData, error
 	return metrics, nil
 }
 
+// Ping проверяет соединение с репозиторием.
 func (a *Application) Ping(ctx context.Context) error {
 	err := a.repo.Ping(ctx)
 	if err != nil {
@@ -130,6 +143,8 @@ func (a *Application) Ping(ctx context.Context) error {
 	return nil
 }
 
+// UpdateMetrics обновляет метрики.
+// Принимает тип метрики counter или gauge.
 func (a *Application) UpdateMetrics(ctx context.Context, metrics []model.MetricRequest) error {
 	var (
 		gaugeMetricList   = map[string]float64{}

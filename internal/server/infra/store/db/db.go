@@ -1,3 +1,10 @@
+// Package db реализует хранилище метрик в базе данных.
+// В качестве СУБД используется PostgreSQL.
+// Для работы с базой данных используется пул соединений pgxpool.
+// При возникновении ошибок, связанных с соединением, выполняется повторная попытка выполнения операции.
+// При этом количество попыток ограничено тремя.
+// При возникновении ошибок, не связанных с соединением, операция завершается с ошибкой.
+//
 //nolint:nolintlint,dupl,gocritic,goconst
 package db
 
@@ -16,10 +23,27 @@ import (
 	"metricalert/internal/server/core/repositories"
 )
 
-type Store struct {
-	pool *pgxpool.Pool
+// PgxPool представляет собой интерфейс для работы с пулом соединений pgxpool.
+type PgxPool interface {
+	Ping(ctx context.Context) error
+	Close()
+
+	QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
+	Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
+
+	Begin(ctx context.Context) (pgx.Tx, error)
+
+	Exec(ctx context.Context, sql string, arguments ...interface{}) (pgconn.CommandTag, error)
+
+	SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
 }
 
+// Store представляет собой хранилище метрик в базе данных.
+type Store struct {
+	pool PgxPool
+}
+
+// New создает новый экземпляр Store.
 func New(dsn string) (*Store, error) {
 	ctx := context.TODO()
 	pool, err := pgxpool.New(ctx, dsn)
@@ -39,6 +63,7 @@ func New(dsn string) (*Store, error) {
 	return &Store{pool: pool}, nil
 }
 
+// UpdateGauge обновляет значение метрики типа gauge.
 func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) error {
 	query := `
 		INSERT INTO gauge_metrics (name, value)
@@ -56,6 +81,7 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 	})
 }
 
+// UpdateGauges обновляет батчом значения метрик типа gauge.
 func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
 	query := `
 		INSERT INTO gauge_metrics (name, value)
@@ -86,6 +112,7 @@ func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) err
 	})
 }
 
+// UpdateCounter обновляет значение метрики типа counter.
 func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
 	query := `
 		INSERT INTO counter_metrics (name, value)
@@ -103,6 +130,7 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 	})
 }
 
+// UpdateCounters обновляет батчом значения метрик типа counter.
 func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
 	query := `
 		INSERT INTO counter_metrics (name, value)
@@ -133,6 +161,7 @@ func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) e
 	})
 }
 
+// GetGauge возвращает значение метрики типа gauge.
 func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 	query := `
 		SELECT value
@@ -147,6 +176,7 @@ func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 	})
 }
 
+// GetCounter возвращает значение метрики типа counter.
 func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 	query := `
 		SELECT value
@@ -161,11 +191,13 @@ func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 	})
 }
 
+// Close закрывает соединение с базой данных.
 func (s *Store) Close() error {
 	s.pool.Close()
 	return nil
 }
 
+// GetGaugeList возвращает список метрик типа gauge.
 func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 	query := `
 		SELECT name, value
@@ -193,6 +225,7 @@ func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 	})
 }
 
+// GetCounterList возвращает список метрик типа counter.
 func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 	query := `
 		SELECT name, value
@@ -220,6 +253,7 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 	})
 }
 
+// Ping проверяет соединение с базой данных.
 func (s *Store) Ping(ctx context.Context) error {
 	err := s.pool.Ping(ctx)
 	if err != nil {
