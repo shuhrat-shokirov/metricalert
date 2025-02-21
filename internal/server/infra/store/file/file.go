@@ -1,3 +1,14 @@
+// Package file реализует хранилище метрик в файле.
+//
+// В файле хранятся метрики типа gauge и counter.
+//
+// При создании нового хранилища из файла, происходит чтение файла и восстановление метрик.
+//
+// Для хранения метрик используется memory.Store.
+//
+// Данные переодически сохраняются в файл.
+//
+// При закрытии хранилища данные сохраняются в файл.
 package file
 
 import (
@@ -14,6 +25,7 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
+// Store структура для хранения метрик в файле.
 type Store struct {
 	*memory.Store
 	file   *os.File
@@ -21,6 +33,7 @@ type Store struct {
 	ticker *time.Ticker
 }
 
+// NewStore создает новый Store.
 func NewStore(conf *Config) (*Store, error) {
 	const perm = 0o666
 	file, err := os.OpenFile(conf.FilePath, os.O_RDWR|os.O_CREATE, perm)
@@ -69,6 +82,7 @@ type metric struct {
 	Counters map[string]int64   `json:"counters"`
 }
 
+// UpdateGauge обновляет значение метрики в файле типа gauge.
 func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) error {
 	err := s.Store.UpdateGauge(ctx, name, value)
 	if err != nil {
@@ -78,6 +92,7 @@ func (s *Store) UpdateGauge(ctx context.Context, name string, value float64) err
 	return nil
 }
 
+// UpdateGauges обновляет значения метрик в файле типа gauge.
 func (s *Store) UpdateGauges(ctx context.Context, gauges map[string]float64) error {
 	err := s.Store.UpdateGauges(ctx, gauges)
 	if err != nil {
@@ -124,6 +139,7 @@ func (s *Store) saveToFile(ctx context.Context) error {
 	return nil
 }
 
+// UpdateCounter обновляет значение счетчика в файле типа counter.
 func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) error {
 	err := s.Store.UpdateCounter(ctx, name, value)
 	if err != nil {
@@ -133,6 +149,7 @@ func (s *Store) UpdateCounter(ctx context.Context, name string, value int64) err
 	return nil
 }
 
+// UpdateCounters обновляет значения счетчиков в файле типа counter.
 func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) error {
 	err := s.Store.UpdateCounters(ctx, counters)
 	if err != nil {
@@ -142,6 +159,7 @@ func (s *Store) UpdateCounters(ctx context.Context, counters map[string]int64) e
 	return nil
 }
 
+// GetGauge возвращает значение метрики из файла типа gauge.
 func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 	value, err := s.Store.GetGauge(ctx, name)
 	if err != nil {
@@ -151,6 +169,7 @@ func (s *Store) GetGauge(ctx context.Context, name string) (float64, error) {
 	return value, nil
 }
 
+// GetCounter возвращает значение счетчика из файла типа counter.
 func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 	value, err := s.Store.GetCounter(ctx, name)
 	if err != nil {
@@ -160,6 +179,7 @@ func (s *Store) GetCounter(ctx context.Context, name string) (int64, error) {
 	return value, nil
 }
 
+// Close закрывает файл.
 func (s *Store) Close() error {
 	s.ticker.Stop()
 
@@ -176,6 +196,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// GetGaugeList возвращает список метрик типа gauge из файла.
 func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 	gaugeList, err := s.Store.GetGaugeList(ctx)
 	if err != nil {
@@ -185,6 +206,7 @@ func (s *Store) GetGaugeList(ctx context.Context) (map[string]float64, error) {
 	return gaugeList, nil
 }
 
+// GetCounterList возвращает список счетчиков типа counter из файла.
 func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 	counterList, err := s.Store.GetCounterList(ctx)
 	if err != nil {
@@ -194,6 +216,7 @@ func (s *Store) GetCounterList(ctx context.Context) (map[string]int64, error) {
 	return counterList, nil
 }
 
+// Ping проверяет доступность хранилища.
 func (s *Store) Ping(_ context.Context) error {
 	return nil
 }

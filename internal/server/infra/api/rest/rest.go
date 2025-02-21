@@ -1,3 +1,6 @@
+// В этом пакете реализована логика обработки запросов к серверу.
+// Все запросы обрабатываются в методах структуры handler.
+
 package rest
 
 import (
@@ -19,10 +22,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"github.com/gin-contrib/pprof"
+
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/core/model"
 )
 
+// ServerService интерфейс для работы с сервером.
 type ServerService interface {
 	UpdateMetric(ctx context.Context, request model.MetricRequest) error
 	UpdateMetrics(ctx context.Context, request []model.MetricRequest) error
@@ -31,10 +37,12 @@ type ServerService interface {
 	Ping(ctx context.Context) error
 }
 
+// API структура для работы с сервером.
 type API struct {
 	srv *http.Server
 }
 
+// Config структура конфигурации сервера.
 type Config struct {
 	Server  ServerService
 	Logger  zap.SugaredLogger
@@ -42,6 +50,7 @@ type Config struct {
 	Port    int64
 }
 
+// NewServerAPI создает новый сервер.
 func NewServerAPI(conf Config) *API {
 	h := handler{
 		server:  conf.Server,
@@ -50,8 +59,11 @@ func NewServerAPI(conf Config) *API {
 	}
 
 	router := gin.New()
+
+	pprof.Register(router)
+
 	router.Use(gin.Recovery())
-	router.Use(h.MwLog())
+	router.Use(h.mwLog())
 	router.Use(h.mwDecompress())
 	router.Use(h.responseGzipMiddleware())
 	router.Use(h.encryptionMiddleware())
@@ -111,7 +123,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 	}
 }
 
-func (h *handler) MwLog() gin.HandlerFunc {
+func (h *handler) mwLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		now := time.Now()
 

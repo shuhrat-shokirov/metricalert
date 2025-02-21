@@ -1,3 +1,32 @@
+// Package store реализует интерфейс для работы с метриками.
+// Пакет содержит функцию NewStore, которая создает новый экземпляр Store.
+// В зависимости от конфигурации создается экземпляр хранилища в памяти, файловое хранилище или база данных.
+// В случае, если конфигурация не передана, возвращается ошибка.
+//
+// В данном этапе реализована работа с базой данных, файловым хранилищем и хранилищем в памяти.
+// В случае, если передана конфигурация для базы данных, создается экземпляр хранилища db.Store.
+// В случае, если передана конфигурация для файлового хранилища, создается экземпляр хранилища file.Store.
+// В случае, если конфигурация не передана, создается экземпляр хранилища в памяти memory.Store.
+// В случае, если конфигурация не передана, возвращается ошибка.
+//
+// Для работы с porstgresql передается конфигурация db.Config.
+//
+//	dbConfig = &db.Config{
+//		DSN: conf.databaseDsn,
+//	}
+//
+// Для работы с файловым хранилищем передается конфигурация file.Config.
+//
+//	fileConfig := &file.Config{
+//			StoreInterval: conf.storeInterval,
+//			Restore:       conf.restore,
+//			FilePath:      conf.fileStorePath,
+//			MemoryStore:   &memory.Config{},
+//		}
+//
+// Если Restore = true, то используется файловое хранилище, иначе хранилище в памяти.
+//
+// В случае, если конфигурация не передана, возвращается ошибка.
 package store
 
 import (
@@ -9,6 +38,7 @@ import (
 	"metricalert/internal/server/infra/store/memory"
 )
 
+// Store интерфейс для работы с метриками.
 type Store interface {
 	UpdateGauge(ctx context.Context, name string, value float64) error
 	UpdateGauges(ctx context.Context, gauges map[string]float64) error
@@ -22,6 +52,9 @@ type Store interface {
 	Ping(ctx context.Context) error
 }
 
+// NewStore создает новый экземпляр Store.
+// В зависимости от конфигурации создается экземпляр хранилища в памяти, файловое хранилище или база данных.
+// В случае, если конфигурация не передана, возвращается ошибка.
 func NewStore(conf Config) (Store, error) {
 	switch {
 	case conf.DB != nil:
