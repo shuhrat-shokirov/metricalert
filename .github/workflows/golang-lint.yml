@@ -19,6 +19,7 @@ jobs:
         with:
           go-version: "stable"
           cache: false
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
