@@ -1,5 +1,3 @@
-//go:build exclude
-
 /*
 Package staticlint предоставляет пользовательские анализаторы для multichecker.
 
