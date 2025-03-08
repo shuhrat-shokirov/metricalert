@@ -104,6 +104,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 		if err != nil {
 			h.logger.Errorf("failed to create gzip reader: %v", err)
 			c.Writer.WriteHeader(http.StatusInternalServerError)
+			c.Abort()
 			return
 		}
 

@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"metricalert/internal/server/core/application"
@@ -717,5 +719,276 @@ func TestServerAPI_GetMetricValue(t *testing.T) {
 		assert.Equal(t, `{"delta":10,"id":"","type":"counter"}`, recorder.Body.String())
 
 		mockServerService.AssertExpectations(t)
+	})
+}
+
+func TestServerAPI_GetMetrics(t *testing.T) {
+	t.Run("internal error", func(t *testing.T) {
+		mockServerService := new(MockServerService)
+		logger := zap.NewNop().Sugar()
+
+		h := handler{
+			server:  mockServerService,
+			logger:  *logger,
+			hashKey: "test-hash-key",
+		}
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		mockServerService.On("GetMetrics", mock.Anything).
+			Return([]model.MetricData{}, errors.New("store error"))
+
+		h.metrics(c)
+
+		assert.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	})
+
+	t.Run("success", func(t *testing.T) {
+		mockServerService := new(MockServerService)
+		logger := zap.NewNop().Sugar()
+
+		h := handler{
+			server:  mockServerService,
+			logger:  *logger,
+			hashKey: "test-hash-key",
+		}
+
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		mockServerService.On("GetMetrics", mock.Anything).
+			Return([]model.MetricData{{Name: "test"}}, nil)
+
+		h.metrics(c)
+
+		assert.Equal(t, http.StatusOK, c.Writer.Status())
+
+		mockServerService.AssertExpectations(t)
+	})
+}
+
+func TestServerAPI_ResponseGzipMiddleware(t *testing.T) {
+	t.Run("success with no gzip", func(t *testing.T) {
+		h := handler{
+			hashKey: "test-hash-key",
+		}
+
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Writer.Header().Set("Content-Type", "application/json")
+		_, _ = c.Writer.Write([]byte(`{"type":"gauge"}`))
+
+		h.responseGzipMiddleware()
+
+		assert.Equal(t, "application/json", c.Writer.Header().Get("Content-Type"))
+		assert.Equal(t, http.StatusOK, c.Writer.Status())
+		assert.Equal(t, `{"type":"gauge"}`, recorder.Body.String())
+	})
+
+	t.Run("success with gzip", func(t *testing.T) {
+		h := handler{
+			hashKey: "test-hash-key",
+		}
+
+		// Создаём тестовый HTTP-запрос с Accept-Encoding: gzip
+		req, err := http.NewRequest(http.MethodGet, "/", nil)
+		require.Nil(t, err)
+
+		req.Header.Set("Accept-Encoding", "gzip")
+
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Request = req
+		c.Writer.Header().Set("Content-Type", "application/json")
+		_, err = c.Writer.Write([]byte(`{"type":"gauge"}`))
+		require.Nil(t, err)
+
+		// Применяем middleware
+		middleware := h.responseGzipMiddleware()
+		middleware(c)
+
+		// Проверяем заголовки
+		assert.Equal(t, "gzip", recorder.Header().Get("Content-Encoding"))
+		assert.Equal(t, "gzip", c.Writer.Header().Get("Accept-Encoding"))
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
+}
+
+func TestServerAPI_MwDecompress(t *testing.T) {
+	t.Run("without content type", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		h := handler{
+			hashKey: "test-hash-key",
+		}
+
+		c.Request = &http.Request{
+			Header: http.Header{},
+			Body:   io.NopCloser(bytes.NewBufferString(`{}`)),
+		}
+
+		c.Request.Header.Set("Application-Type", "application/json")
+
+		middleware := h.mwDecompress()
+		middleware(c)
+
+		assert.Equal(t, http.StatusOK, recorder.Code)
+	})
+
+	t.Run("parsing error with content type", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		h := handler{
+			hashKey: "test-hash-key",
+			logger:  *zap.NewNop().Sugar(),
+		}
+
+		c.Request = &http.Request{
+			Header: http.Header{
+				"Content-Encoding": []string{"gzip"},
+			},
+			Body: io.NopCloser(bytes.NewBufferString(``)),
+		}
+
+		middleware := h.mwDecompress()
+		middleware(c)
+
+		require.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	})
+}
+
+func TestServerAPI_MwLog(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		h := handler{
+			hashKey: "test-hash-key",
+			logger:  *zap.NewNop().Sugar(),
+		}
+
+		c.Request = &http.Request{
+			Header: http.Header{
+				"Content-Encoding": []string{"gzip"},
+			},
+		}
+
+		h.mwLog()(c)
+
+		c.Writer.WriteHeader(http.StatusOK)
+	})
+}
+
+func Test_gzipResponseWriter_Write(t *testing.T) {
+	t.Run("success json writer", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Header("Content-Type", "application/json")
+
+		w := &gzipResponseWriter{
+			Writer:         c.Writer,
+			ResponseWriter: c.Writer,
+		}
+
+		_, err := w.Write([]byte(`{"type":"gauge"}`))
+		require.Nil(t, err)
+
+		assert.Equal(t, http.StatusOK, c.Writer.Status())
+		assert.Equal(t, `{"type":"gauge"}`, recorder.Body.String())
+	})
+
+	t.Run("success gzip writer", func(t *testing.T) {
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Header("Content-Encoding", "gzip")
+
+		w := &gzipResponseWriter{
+			Writer:         c.Writer,
+			ResponseWriter: c.Writer,
+		}
+
+		_, err := w.Write([]byte(`{"type":"gauge"}`))
+		require.Nil(t, err)
+
+		assert.Equal(t, http.StatusOK, c.Writer.Status())
+		assert.Equal(t, `{"type":"gauge"}`, recorder.Body.String())
+		assert.Equal(t, `gzip`, recorder.Header().Get("Content-Encoding"))
+	})
+}
+
+func TestServerAPI_Ping(t *testing.T) {
+	t.Run("internal error", func(t *testing.T) {
+		mockServerService := new(MockServerService)
+		logger := zap.NewNop().Sugar()
+
+		h := handler{
+			server: mockServerService,
+			logger: *logger,
+		}
+
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Request = httptest.NewRequest(http.MethodGet, "/ping", nil)
+
+		mockServerService.On("Ping", mock.Anything).
+			Return(errors.New("store error"))
+
+		h.dbPing(c)
+
+		assert.Equal(t, http.StatusInternalServerError, c.Writer.Status())
+	})
+
+	t.Run("success", func(t *testing.T) {
+		mockServerService := new(MockServerService)
+		logger := zap.NewNop().Sugar()
+
+		h := handler{
+			server: mockServerService,
+			logger: *logger,
+		}
+
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+
+		c.Request = httptest.NewRequest(http.MethodGet, "/ping", nil)
+
+		mockServerService.On("Ping", mock.Anything).
+			Return(nil)
+
+		h.dbPing(c)
+
+		assert.Equal(t, http.StatusOK, c.Writer.Status())
+
+		mockServerService.AssertExpectations(t)
+	})
+}
+
+func TestServerAPI_Running(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		api := NewServerAPI(Config{
+			Server:  new(MockServerService),
+			Logger:  *zap.NewNop().Sugar(),
+			HashKey: "test-hash-key",
+			Port:    8080,
+		})
+
+		go func() {
+			_ = api.Run()
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+		err := api.Run()
+		assert.Error(t, err)
+
+		err = api.srv.Shutdown(context.Background())
+
+		assert.NoError(t, err)
 	})
 }
