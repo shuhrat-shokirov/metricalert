@@ -35,7 +35,7 @@ run:
 # Output configuration options
 output:
   formats:
-    - format: json
+    - format: colored-line-number
   # Print lines of code with issue.
   print-issued-lines: true
   # Print linter name in the end of issue text.

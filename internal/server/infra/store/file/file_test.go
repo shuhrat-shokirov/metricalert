@@ -42,12 +42,12 @@ func TestNewStore(t *testing.T) {
 			StoreInterval: 1,
 		})
 		defer func() {
-			err := store.Close()
-			assert.NoError(t, err)
+			newErr := store.Close()
+			assert.NoError(t, newErr)
 		}()
 		defer func() {
-			err := os.Remove("test")
-			assert.NoError(t, err)
+			newErr := os.Remove("test")
+			assert.NoError(t, newErr)
 		}()
 		assert.NotNil(t, store)
 		assert.NoError(t, err)
@@ -76,8 +76,8 @@ func TestNewStore(t *testing.T) {
 			StoreInterval: 1,
 		})
 		defer func() {
-			err := store2.Close()
-			assert.NoError(t, err)
+			newErr := store2.Close()
+			assert.NoError(t, newErr)
 		}()
 
 		assert.NotNil(t, store2)

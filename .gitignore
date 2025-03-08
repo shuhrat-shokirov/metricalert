@@ -16,14 +16,17 @@ cmd/agent/main
 cmd/agent/agent
 cmd/server/main
 cmd/server/server
+main
 
 # Dependency directories (remove the comment below to include it)
 vendor/
+/profiles
+/golangci-lint
+/cmd/errchecklint/
 
 # IDEs directories
 .idea
 .vscode
 
-/golangci-lint
-
 store.json
+coverage.html

@@ -75,9 +75,9 @@ func main() {
 			log.Fatalf("can't parse address: %s", *serverAddr)
 		}
 
-		port, err := strconv.ParseInt(split[1], 10, 64)
-		if err != nil {
-			log.Fatalf("can't parse port: %v", err)
+		port, newErr := strconv.ParseInt(split[1], 10, 64)
+		if newErr != nil {
+			log.Fatalf("can't parse port: %v", newErr)
 		}
 
 		return port
