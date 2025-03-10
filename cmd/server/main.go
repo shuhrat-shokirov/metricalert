@@ -19,6 +19,30 @@ type configParams struct {
 	Restore       bool   `env:"RESTORE"`
 }
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
+func init() {
+	if buildVersion == "" {
+		buildVersion = "N/A"
+	}
+
+	if buildDate == "" {
+		buildDate = "N/A"
+	}
+
+	if buildCommit == "" {
+		buildCommit = "N/A"
+	}
+
+	log.Printf("Version: %s\n", buildVersion)
+	log.Printf("Date: %s\n", buildDate)
+	log.Printf("Commit: %s\n", buildCommit)
+}
+
 func main() {
 	var defaultParams configParams
 
