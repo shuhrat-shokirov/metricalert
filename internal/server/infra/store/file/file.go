@@ -55,8 +55,8 @@ func NewStore(conf *Config) (*Store, error) {
 
 	go func() {
 		for range s.ticker.C {
-			if err := s.saveToFile(context.TODO()); err != nil {
-				zap.L().Error("can't save to file", zap.Error(err))
+			if newErr := s.saveToFile(context.TODO()); newErr != nil {
+				zap.L().Error("can't save to file", zap.Error(newErr))
 			}
 		}
 	}()

@@ -16,7 +16,6 @@ package staticlint
 
 import (
 	"go/ast"
-	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -40,9 +39,22 @@ func run(pass *analysis.Pass) (interface{}, error) {
 	}
 
 	for _, file := range pass.Files {
-		if !isMain(pass, file) {
+		// проверяем, что файл является main-пакетом
+		if pass.Pkg.Name() != "main" {
 			continue
 		}
+
+		// проверяем, что в файле есть main-функция
+		ast.Inspect(file, func(n ast.Node) bool {
+			switch x := n.(type) {
+			case *ast.FuncDecl:
+				if x.Name.Name == "main" {
+					return true
+				}
+			default:
+			}
+			return true
+		})
 
 		// функцией ast.Inspect проходим по всем узлам AST
 		ast.Inspect(file, func(node ast.Node) bool {
@@ -55,22 +67,6 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		})
 	}
 	return nil, nil //nolint:nilnil,nolintlint,gocritic
-}
-
-// isMain проверяет, что файл - это main-функция пакета main.
-func isMain(pass *analysis.Pass, file *ast.File) bool {
-	// Получаем путь к файлу
-	pos := pass.Fset.Position(file.Pos())
-
-	if !strings.Contains(pos.Filename, "/cmd/") {
-		return false
-	}
-
-	if !strings.HasSuffix(pos.Filename, "main.go") {
-		return false
-	}
-
-	return true
 }
 
 // isOsExit проверяет, что вызов функции - это os.Exit.

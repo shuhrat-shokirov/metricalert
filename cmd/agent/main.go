@@ -17,24 +17,12 @@ type configParams struct {
 }
 
 var (
-	buildVersion string
-	buildDate    string
-	buildCommit  string
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
 )
 
-func init() {
-	if buildVersion == "" {
-		buildVersion = "N/A"
-	}
-
-	if buildDate == "" {
-		buildDate = "N/A"
-	}
-
-	if buildCommit == "" {
-		buildCommit = "N/A"
-	}
-
+func buildInfo() {
 	log.Printf("Version: %s\n", buildVersion)
 	log.Printf("Date: %s\n", buildDate)
 	log.Printf("Commit: %s\n", buildCommit)
@@ -92,6 +80,8 @@ func main() {
 			log.Fatalf("unknown flag: %s", f.Name)
 		}
 	})
+
+	buildInfo()
 
 	run(config{
 		addr:           *serverAddr,
