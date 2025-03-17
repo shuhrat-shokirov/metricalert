@@ -1,6 +1,8 @@
 module metricalert
 
-go 1.24
+go 1.22.0
+
+toolchain go1.24.1
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1
