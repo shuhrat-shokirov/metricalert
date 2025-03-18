@@ -16,6 +16,18 @@ type configParams struct {
 	RateLimit      int64  `env:"RATE_LIMIT"`
 }
 
+var (
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
+)
+
+func buildInfo() {
+	log.Printf("Version: %s\n", buildVersion)
+	log.Printf("Date: %s\n", buildDate)
+	log.Printf("Commit: %s\n", buildCommit)
+}
+
 func main() {
 	var defaultParams configParams
 
@@ -68,6 +80,8 @@ func main() {
 			log.Fatalf("unknown flag: %s", f.Name)
 		}
 	})
+
+	buildInfo()
 
 	run(config{
 		addr:           *serverAddr,

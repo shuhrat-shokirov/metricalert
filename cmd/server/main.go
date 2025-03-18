@@ -19,6 +19,30 @@ type configParams struct {
 	Restore       bool   `env:"RESTORE"`
 }
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
+func init() {
+	if buildVersion == "" {
+		buildVersion = "N/A"
+	}
+
+	if buildDate == "" {
+		buildDate = "N/A"
+	}
+
+	if buildCommit == "" {
+		buildCommit = "N/A"
+	}
+
+	log.Printf("Version: %s\n", buildVersion)
+	log.Printf("Date: %s\n", buildDate)
+	log.Printf("Commit: %s\n", buildCommit)
+}
+
 func main() {
 	var defaultParams configParams
 
@@ -75,9 +99,9 @@ func main() {
 			log.Fatalf("can't parse address: %s", *serverAddr)
 		}
 
-		port, err := strconv.ParseInt(split[1], 10, 64)
-		if err != nil {
-			log.Fatalf("can't parse port: %v", err)
+		port, newErr := strconv.ParseInt(split[1], 10, 64)
+		if newErr != nil {
+			log.Fatalf("can't parse port: %v", newErr)
 		}
 
 		return port

@@ -70,8 +70,6 @@ func run(conf *config) error {
 		if err := newStore.Close(); err != nil {
 			conf.logger.Errorf("can't close store: %v", err)
 		}
-
-		os.Exit(0)
 	}()
 
 	if err := api.Run(); err != nil {

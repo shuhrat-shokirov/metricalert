@@ -104,6 +104,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 		if err != nil {
 			h.logger.Errorf("failed to create gzip reader: %v", err)
 			c.Writer.WriteHeader(http.StatusInternalServerError)
+			c.Abort()
 			return
 		}
 
@@ -296,9 +297,9 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 	switch request.MType {
 	case counterType:
-		v, err := strconv.Atoi(value)
-		if err != nil {
-			h.logger.Errorf("failed to parse counter, value: %s, error: %v", value, err)
+		v, newErr := strconv.Atoi(value)
+		if newErr != nil {
+			h.logger.Errorf("failed to parse counter, value: %s, error: %v", value, newErr)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return
 		}
@@ -307,8 +308,8 @@ func (h *handler) getMetricValue(ginCtx *gin.Context) {
 
 		response.Delta = &metricValue
 	case gaugeType:
-		v, err := strconv.ParseFloat(value, 64)
-		if err != nil {
+		v, newErr := strconv.ParseFloat(value, 64)
+		if newErr != nil {
 			h.logger.Errorf("failed to parse gauge, value: %s, error: %v", value, err)
 			ginCtx.Writer.WriteHeader(http.StatusInternalServerError)
 			return

@@ -28,6 +28,10 @@ jobs:
           chmod -R +x $GITHUB_WORKSPACE/.tools/statictest
           mv $GITHUB_WORKSPACE/.tools/statictest /usr/local/bin/statictest
 
+      - name: Setup go deps
+        run: |
+          go install golang.org/x/tools/cmd/goimports@v0.30.0
+
       - name: Run statictest
         run: |
           go vet -vettool=$(which statictest) ./...

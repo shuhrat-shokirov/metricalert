@@ -100,9 +100,9 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 			return fmt.Errorf("failed to send metric: %w", err)
 		}
 		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				zap.L().Error("can't close response body", zap.Error(err))
+			newErr := resp.Body.Close()
+			if newErr != nil {
+				zap.L().Error("can't close response body", zap.Error(newErr))
 			}
 		}()
 
