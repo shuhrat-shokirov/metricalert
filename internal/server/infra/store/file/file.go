@@ -20,8 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
 	"metricalert/internal/server/infra/store/memory"
 )
 
@@ -53,14 +51,6 @@ func NewStore(conf *Config) (*Store, error) {
 		ticker: time.NewTicker(time.Duration(conf.StoreInterval) * time.Second),
 	}
 
-	go func() {
-		for range s.ticker.C {
-			if newErr := s.saveToFile(context.TODO()); newErr != nil {
-				zap.L().Error("can't save to file", zap.Error(newErr))
-			}
-		}
-	}()
-
 	if len(bytes) == 0 {
 		return s, nil
 	}
@@ -75,6 +65,18 @@ func NewStore(conf *Config) (*Store, error) {
 	s.RestoreCounters(metrics.Counters)
 
 	return s, nil
+}
+
+func (s *Store) Sync(ctx context.Context) {
+	for {
+		select {
+		case <-s.ticker.C:
+			err := s.saveToFile(ctx)
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
 }
 
 type metric struct {

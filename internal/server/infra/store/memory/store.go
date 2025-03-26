@@ -129,3 +129,6 @@ func (s *Store) Close() error {
 func (s *Store) Ping(_ context.Context) error {
 	return nil
 }
+
+func (s *Store) Sync(_ context.Context) {
+}

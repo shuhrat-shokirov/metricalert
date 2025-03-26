@@ -302,3 +302,6 @@ func retry(operation func() error) error {
 
 	return fmt.Errorf("operation failed after %d retries: %w", maxRetries, lastErr)
 }
+
+func (s *Store) Sync(ctx context.Context) {
+}

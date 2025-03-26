@@ -50,6 +50,7 @@ type Store interface {
 	GetCounter(ctx context.Context, name string) (int64, error)
 	Close() error
 	Ping(ctx context.Context) error
+	Sync(ctx context.Context)
 }
 
 // NewStore создает новый экземпляр Store.

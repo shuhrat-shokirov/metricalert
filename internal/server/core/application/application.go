@@ -28,6 +28,7 @@ type Repo interface {
 	GetCounter(ctx context.Context, name string) (int64, error)
 	Close() error
 	Ping(ctx context.Context) error
+	Sync(ctx context.Context)
 }
 
 // Application структура принимает репозиторий и реализует методы для работы с метриками.

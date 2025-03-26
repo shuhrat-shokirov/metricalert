@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -65,13 +66,21 @@ func run(conf *config) error {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 
+	ctx, cancel := context.WithCancel(context.TODO())
+
 	go func() {
 		<-stop
 		if err := newStore.Close(); err != nil {
 			conf.logger.Errorf("can't close store: %v", err)
 		}
 
+		cancel()
+
 		os.Exit(0)
+	}()
+
+	go func() {
+		newStore.Sync(ctx)
 	}()
 
 	if err := api.Run(); err != nil {
