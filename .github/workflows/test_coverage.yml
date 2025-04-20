@@ -8,6 +8,11 @@ on:
     branches:
       - main
 
+permissions:
+  pull-requests: write
+  contents: write
+  pages: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
