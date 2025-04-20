@@ -1,23 +1,26 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 
-	"github.com/caarlos0/env/v11"
 	"go.uber.org/zap"
 )
 
 type configParams struct {
-	Addr          string `env:"ADDRESS"`
-	FileStorePath string `env:"FILE_STORE_PATH"`
-	DatabaseDsn   string `env:"DATABASE_DSN"`
-	HashKey       string `env:"KEY"`
-	CryptoKey     string `env:"CRYPTO_KEY"`
-	StoreInterval int    `env:"STORE_INTERVAL" envDefault:"-1"`
-	Restore       bool   `env:"RESTORE"`
+	Addr          string `json:"address"`
+	FileStorePath string `json:"store_file"`
+	DatabaseDsn   string `json:"database_dsn"`
+	HashKey       string `json:"-"`
+	CryptoKey     string `json:"crypto_key"`
+	StoreInterval string `json:"store_interval"`
+	Restore       bool   `json:"restore"`
+	port          int64
 }
 
 var (
@@ -26,66 +29,104 @@ var (
 	buildCommit  = "N/A"
 )
 
-func buildInfo() {
-	log.Printf("Version: %s\n", buildVersion)
-	log.Printf("Date: %s\n", buildDate)
-	log.Printf("Commit: %s\n", buildCommit)
-}
-
-func main() {
-	var defaultParams configParams
-
-	err := env.Parse(&defaultParams)
-	if err != nil {
-		log.Fatalf("can't parse env: %v", err)
-	}
-
+func loadServerConfig() (*configParams, error) {
+	//Флаги
 	const (
-		defaultAddr          = "localhost:8080"
-		defaultStoreInterval = 300
+		defaultStoreInterval = "5s"
+		defaultAddr          = ":8080"
 		defaultFileStorePath = "store.json"
-		defaultRestore       = true
 	)
-
-	serverAddr := flag.String("a", defaultAddr, "server address")
-	storeInterval := flag.Int("i", defaultStoreInterval, "store interval")
-	fileStorePath := flag.String("f", defaultFileStorePath, "file store path")
-	restore := flag.Bool("r", defaultRestore, "restore")
-	dataBaseDsn := flag.String("d", "", "database dsn")
-	hashKey := flag.String("k", "", "hash key")
-	cryptoKey := flag.String("c", "", "crypto key")
+	configPath := flag.String("c", "", "Path to configuration file")
+	address := flag.String("a", defaultAddr, "The address to listen on for HTTP requests.")
+	restore := flag.Bool("r", true, "Restore from file")
+	storeInterval := flag.String("i", defaultStoreInterval, "Store interval")
+	fileStorePath := flag.String("f", defaultFileStorePath, "File store path")
+	databaseDsn := flag.String("d", "", "Database dsn")
+	hashKey := flag.String("k", "", "Hash key")
+	cryptoKey := flag.String("s", "", "Crypto key")
 	flag.Parse()
 
-	if defaultParams.Addr != "" {
-		serverAddr = &defaultParams.Addr
+	// Переменные окружения
+	envConfigPath := os.Getenv("CONFIG")
+	envAddress := os.Getenv("ADDRESS")
+	envRestore := os.Getenv("RESTORE")
+	envStoreInterval := os.Getenv("STORE_INTERVAL")
+	envFileStorePath := os.Getenv("FILE_STORE_PATH")
+	envDatabaseDsn := os.Getenv("DATABASE_DSN")
+	envHashKey := os.Getenv("KEY")
+	envCryptoKey := os.Getenv("CRYPTO_KEY")
+
+	// Проверка наличия конфигурационного файла
+	var config = &configParams{}
+	if *configPath != "" || envConfigPath != "" {
+		path := *configPath
+		if path == "" {
+			path = envConfigPath
+		}
+
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open config file: %w", err)
+		}
+		defer func() {
+			if err := file.Close(); err != nil {
+				log.Printf("failed to close config file: %v", err)
+			}
+		}()
+
+		if err := json.NewDecoder(file).Decode(&config); err != nil {
+			return nil, fmt.Errorf("failed to decode config file: %w", err)
+		}
 	}
 
-	if defaultParams.StoreInterval != -1 {
-		storeInterval = &defaultParams.StoreInterval
+	if *address != "" {
+		config.Addr = *address
+	} else if envAddress != "" {
+		config.Addr = envAddress
 	}
 
-	if defaultParams.FileStorePath != "" {
-		fileStorePath = &defaultParams.FileStorePath
+	if *restore {
+		config.Restore = *restore
+	} else if envRestore == "true" {
+		config.Restore = true
 	}
 
-	if defaultParams.Restore {
-		restore = &defaultParams.Restore
+	if *storeInterval != "" {
+		config.StoreInterval = *storeInterval
+	} else if envStoreInterval != "" {
+		config.StoreInterval = envStoreInterval
 	}
 
-	if defaultParams.DatabaseDsn != "" {
-		dataBaseDsn = &defaultParams.DatabaseDsn
+	if *fileStorePath != "" {
+		config.FileStorePath = *fileStorePath
+	} else if envFileStorePath != "" {
+		config.FileStorePath = envFileStorePath
 	}
 
-	if defaultParams.HashKey != "" {
-		hashKey = &defaultParams.HashKey
+	if *databaseDsn != "" {
+		config.DatabaseDsn = *databaseDsn
+	} else if envDatabaseDsn != "" {
+		config.DatabaseDsn = envDatabaseDsn
+	}
+
+	if *hashKey != "" {
+		config.HashKey = *hashKey
+	} else if envHashKey != "" {
+		config.HashKey = envHashKey
+	}
+
+	if *cryptoKey != "" {
+		config.CryptoKey = *cryptoKey
+	} else if envCryptoKey != "" {
+		config.CryptoKey = envCryptoKey
 	}
 
 	portService := func() int64 {
-		split := strings.Split(*serverAddr, ":")
+		split := strings.Split(config.Addr, ":")
 		const splitLen = 2
 
 		if len(split) != splitLen {
-			log.Fatalf("can't parse address: %s", *serverAddr)
+			log.Fatalf("can't parse address: %s", config.Addr)
 		}
 
 		port, newErr := strconv.ParseInt(split[1], 10, 64)
@@ -95,17 +136,22 @@ func main() {
 
 		return port
 	}()
+	config.port = portService
 
-	if defaultParams.CryptoKey != "" {
-		cryptoKey = &defaultParams.CryptoKey
+	return config, nil
+}
+
+func buildInfo() {
+	log.Printf("Version: %s\n", buildVersion)
+	log.Printf("Date: %s\n", buildDate)
+	log.Printf("Commit: %s\n", buildCommit)
+}
+
+func main() {
+	serverConfig, err := loadServerConfig()
+	if err != nil {
+		log.Fatalf("can't load config: %v", err)
 	}
-
-	// Проверка на неизвестные флаги
-	flag.VisitAll(func(f *flag.Flag) {
-		if !flag.Parsed() {
-			log.Fatalf("can't parse flag: %s", f.Name)
-		}
-	})
 
 	logger, err := zap.NewDevelopment()
 	if err != nil {
@@ -120,14 +166,14 @@ func main() {
 	buildInfo()
 
 	if err := run(&config{
-		port:          portService,
-		storeInterval: *storeInterval,
-		fileStorePath: *fileStorePath,
-		restore:       *restore,
+		port:          serverConfig.port,
+		storeInterval: serverConfig.StoreInterval,
+		fileStorePath: serverConfig.FileStorePath,
+		restore:       serverConfig.Restore,
 		logger:        *logger.Sugar(),
-		databaseDsn:   *dataBaseDsn,
-		hashKey:       *hashKey,
-		cryptoKey:     *cryptoKey,
+		databaseDsn:   serverConfig.DatabaseDsn,
+		hashKey:       serverConfig.HashKey,
+		cryptoKey:     serverConfig.CryptoKey,
 	}); err != nil {
 		logger.Fatal("can't run server", zap.Error(err))
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -22,8 +23,8 @@ type config struct {
 	databaseDsn   string
 	hashKey       string
 	cryptoKey     string
+	storeInterval string
 	port          int64
-	storeInterval int
 	restore       bool
 }
 
@@ -34,8 +35,13 @@ func run(conf *config) error {
 		dbConfig *db.Config
 	)
 
+	storeInterval, err := time.ParseDuration(conf.storeInterval)
+	if err != nil {
+		return fmt.Errorf("can't parse store interval: %w", err)
+	}
+
 	fileConfig := &file.Config{
-		StoreInterval: conf.storeInterval,
+		StoreInterval: storeInterval,
 		Restore:       conf.restore,
 		FilePath:      conf.fileStorePath,
 		MemoryStore:   &memory.Config{},
