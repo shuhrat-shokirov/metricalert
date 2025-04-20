@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"time"
 
 	"metricalert/internal/agent/core/application"
@@ -13,12 +13,12 @@ type config struct {
 	addr           string
 	hashKey        string
 	cryptoKey      string
-	reportInterval string
-	pollInterval   string
+	reportInterval time.Duration
+	pollInterval   time.Duration
 	rateLimit      int64
 }
 
-func run(conf *config) error {
+func run(ctx context.Context, conf *config) {
 	newClient := client.NewClient(conf.addr,
 		conf.hashKey,
 		conf.cryptoKey)
@@ -26,25 +26,9 @@ func run(conf *config) error {
 
 	agent := application.NewApplication(newClient, collector)
 
-	reportInterval, err := time.ParseDuration(conf.reportInterval)
-	if err != nil {
-		return fmt.Errorf("can't parse report interval: %w", err)
-	}
-
-	pollInterval, err := time.ParseDuration(conf.pollInterval)
-	if err != nil {
-		return fmt.Errorf("can't parse poll interval: %w", err)
-	}
-
-	if conf.rateLimit == 0 {
-		conf.rateLimit = 1
-	}
-
-	agent.Start(application.Config{
-		PoolInterval:   reportInterval,
-		ReportInterval: pollInterval,
+	agent.Start(ctx, application.Config{
+		PoolInterval:   conf.pollInterval,
+		ReportInterval: conf.reportInterval,
 		RateLimit:      conf.rateLimit,
 	})
-
-	return nil
 }

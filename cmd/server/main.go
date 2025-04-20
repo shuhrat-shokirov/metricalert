@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"go.uber.org/zap"
 )
@@ -33,7 +36,7 @@ func loadServerConfig() (*configParams, error) {
 	// Флаги
 	const (
 		defaultStoreInterval = "5s"
-		defaultAddr          = ":8080"
+		defaultAddr          = ":9090"
 		defaultFileStorePath = "store.json"
 	)
 	configPath := flag.String("c", "", "Path to configuration file")
@@ -165,7 +168,20 @@ func main() {
 
 	buildInfo()
 
-	if err := run(&config{
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		sig := <-signalChan
+		log.Printf("Received signal: %s", sig)
+		cancel()
+	}()
+
+	stop := make(chan struct{})
+
+	go run(ctx, &config{
 		port:          serverConfig.port,
 		storeInterval: serverConfig.StoreInterval,
 		fileStorePath: serverConfig.FileStorePath,
@@ -174,7 +190,7 @@ func main() {
 		databaseDsn:   serverConfig.DatabaseDsn,
 		hashKey:       serverConfig.HashKey,
 		cryptoKey:     serverConfig.CryptoKey,
-	}); err != nil {
-		logger.Fatal("can't run server", zap.Error(err))
-	}
+	}, stop)
+
+	<-stop
 }

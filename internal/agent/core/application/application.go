@@ -41,7 +41,7 @@ type Config struct {
 	RateLimit      int64
 }
 
-func (a *Agent) Start(conf Config) {
+func (a *Agent) Start(ctx context.Context, conf Config) {
 	ticker := time.NewTicker(conf.ReportInterval)
 	defer ticker.Stop()
 
@@ -49,8 +49,6 @@ func (a *Agent) Start(conf Config) {
 	defer poll.Stop()
 
 	metricsChan := make(chan []model.Metric, conf.RateLimit)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	var wg sync.WaitGroup
 
@@ -58,7 +56,7 @@ func (a *Agent) Start(conf Config) {
 		wg.Add(1)
 		go a.worker(ctx, &wg, metricsChan)
 	}
-	go func(collector Collector, ctx context.Context) {
+	go func(ctx context.Context, collector Collector) {
 		for {
 			select {
 			case <-poll.C:
@@ -71,7 +69,7 @@ func (a *Agent) Start(conf Config) {
 				return
 			}
 		}
-	}(a.collector, ctx)
+	}(ctx, a.collector)
 
 	var metrics []model.Metric
 	for {

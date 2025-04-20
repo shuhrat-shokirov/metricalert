@@ -220,8 +220,17 @@ func (h *handler) mwLog() gin.HandlerFunc {
 
 // Run запускает сервер.
 func (a *API) Run() error {
-	if err := a.srv.ListenAndServe(); err != nil {
-		return fmt.Errorf("can't start server: %w", err)
+	if err := a.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+// Shutdown завершает работу сервера.
+func (a *API) Shutdown(ctx context.Context) error {
+	if err := a.srv.Shutdown(ctx); err != nil {
+		return fmt.Errorf("failed to shutdown server: %w", err)
 	}
 
 	return nil

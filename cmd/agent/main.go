@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
+	"time"
 )
 
 type configParams struct {
@@ -129,14 +133,40 @@ func main() {
 
 	buildInfo()
 
-	if err = run(&config{
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Обработка сигналов
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+
+	go func() {
+		sig := <-signalChan
+		log.Printf("Received signal: %s", sig)
+		cancel()
+	}()
+
+	reportInterval, err := time.ParseDuration(agentConfig.ReportInterval)
+	if err != nil {
+		log.Fatalf("can't parse report interval: %v", err)
+	}
+
+	pollInterval, err := time.ParseDuration(agentConfig.PollInterval)
+	if err != nil {
+		log.Fatalf("can't parse poll interval: %v", err)
+	}
+
+	if agentConfig.RateLimit == 0 {
+		agentConfig.RateLimit = 1
+	}
+
+	run(ctx, &config{
 		addr:           agentConfig.Addr,
-		reportInterval: agentConfig.ReportInterval,
-		pollInterval:   agentConfig.PollInterval,
+		reportInterval: reportInterval,
+		pollInterval:   pollInterval,
 		hashKey:        agentConfig.HashKey,
 		rateLimit:      agentConfig.RateLimit,
 		cryptoKey:      agentConfig.CryptoKey,
-	}); err != nil {
-		log.Fatalf("failed to run agent: %v", err)
-	}
+	})
+
+	log.Println("Stopping agent...")
 }
