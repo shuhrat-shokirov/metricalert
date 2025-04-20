@@ -30,7 +30,7 @@ var (
 )
 
 func loadServerConfig() (*configParams, error) {
-	//Флаги
+	// Флаги
 	const (
 		defaultStoreInterval = "5s"
 		defaultAddr          = ":8080"

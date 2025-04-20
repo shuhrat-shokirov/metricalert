@@ -129,7 +129,7 @@ func main() {
 
 	buildInfo()
 
-	if err = run(config{
+	if err = run(&config{
 		addr:           agentConfig.Addr,
 		reportInterval: agentConfig.ReportInterval,
 		pollInterval:   agentConfig.PollInterval,

@@ -48,7 +48,7 @@ func NewStore(conf *Config) (*Store, error) {
 		Store:  memory.NewStore(conf.MemoryStore),
 		file:   file,
 		mu:     &sync.Mutex{},
-		ticker: time.NewTicker(time.Duration(conf.StoreInterval) * time.Second),
+		ticker: time.NewTicker(conf.StoreInterval),
 	}
 
 	if len(bytes) == 0 {

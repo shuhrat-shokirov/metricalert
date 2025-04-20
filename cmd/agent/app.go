@@ -18,7 +18,7 @@ type config struct {
 	rateLimit      int64
 }
 
-func run(conf config) error {
+func run(conf *config) error {
 	newClient := client.NewClient(conf.addr,
 		conf.hashKey,
 		conf.cryptoKey)
