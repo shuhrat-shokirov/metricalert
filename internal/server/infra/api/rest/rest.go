@@ -54,8 +54,8 @@ type Config struct {
 	Server    ServerService
 	Logger    zap.SugaredLogger
 	HashKey   string
-	Port      int64
 	CryptoKey string
+	Port      int64
 }
 
 // NewServerAPI создает новый сервер.
@@ -114,7 +114,7 @@ func NewServerAPI(conf Config) *API {
 func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't read private key: %w", err)
 	}
 
 	block, _ := pem.Decode(data)
@@ -124,7 +124,7 @@ func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
 
 	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ошибка парсинга закрытого ключа: %w", err)
 	}
 
 	return key, nil
@@ -154,8 +154,6 @@ func (h *handler) mwEncrypt() gin.HandlerFunc {
 			return
 		}
 
-		//decodedBytes := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
-		//
 		decodeBytes, err := base64.StdEncoding.DecodeString(string(data))
 		if err != nil {
 			h.logger.Errorf("failed to decode data: %v", err)
@@ -168,7 +166,6 @@ func (h *handler) mwEncrypt() gin.HandlerFunc {
 
 		c.Next()
 	}
-
 }
 
 // mwDecompress middleware для распаковки gzip-сжатых данных.
@@ -233,8 +230,8 @@ func (a *API) Run() error {
 type handler struct {
 	server     ServerService
 	logger     zap.SugaredLogger
-	hashKey    string
 	privateKey *rsa.PrivateKey
+	hashKey    string
 }
 
 func (h *handler) update(ginCtx *gin.Context) {

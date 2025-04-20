@@ -11,10 +11,10 @@ import (
 type configParams struct {
 	Addr           string `env:"ADDRESS"`
 	HashKey        string `env:"KEY"`
+	CryptoKey      string `env:"CRYPTO_KEY"`
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 	RateLimit      int64  `env:"RATE_LIMIT"`
-	CryptoKey      string `env:"CRYPTO_KEY"`
 }
 
 var (

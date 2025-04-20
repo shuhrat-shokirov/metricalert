@@ -15,9 +15,9 @@ type configParams struct {
 	FileStorePath string `env:"FILE_STORE_PATH"`
 	DatabaseDsn   string `env:"DATABASE_DSN"`
 	HashKey       string `env:"KEY"`
+	CryptoKey     string `env:"CRYPTO_KEY"`
 	StoreInterval int    `env:"STORE_INTERVAL" envDefault:"-1"`
 	Restore       bool   `env:"RESTORE"`
-	CryptoKey     string `env:"CRYPTO_KEY"`
 }
 
 var (

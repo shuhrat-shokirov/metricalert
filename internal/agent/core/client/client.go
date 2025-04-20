@@ -30,9 +30,9 @@ type Client interface {
 }
 
 type handler struct {
+	publicKey *rsa.PublicKey
 	addr      string
 	hashKey   string
-	publicKey *rsa.PublicKey
 }
 
 type metrics struct {
@@ -63,7 +63,7 @@ func NewClient(addr, hashKey, cryptoKey string) Client {
 func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't read public key: %w", err)
 	}
 
 	block, _ := pem.Decode(data)
@@ -73,7 +73,7 @@ func loadPublicKey(path string) (*rsa.PublicKey, error) {
 
 	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ошибка парсинга публичного ключа: %w", err)
 	}
 
 	publicKey, ok := pub.(*rsa.PublicKey)
@@ -170,7 +170,7 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 	return nil
 }
 
-// получаем данные и шифрируем их по публику
+// Получаем данные и шифрируем их по публику.
 func (c *handler) rsaEncrypt(data []byte) ([]byte, error) {
 	newData := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
 

@@ -68,13 +68,10 @@ func NewStore(conf *Config) (*Store, error) {
 }
 
 func (s *Store) Sync(ctx context.Context) {
-	for {
-		select {
-		case <-s.ticker.C:
-			err := s.saveToFile(ctx)
-			if err != nil {
-				fmt.Println(err)
-			}
+	for range s.ticker.C {
+		err := s.saveToFile(ctx)
+		if err != nil {
+			fmt.Println(err)
 		}
 	}
 }
