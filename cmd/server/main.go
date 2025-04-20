@@ -17,27 +17,16 @@ type configParams struct {
 	HashKey       string `env:"KEY"`
 	StoreInterval int    `env:"STORE_INTERVAL" envDefault:"-1"`
 	Restore       bool   `env:"RESTORE"`
+	CryptoKey     string `env:"CRYPTO_KEY"`
 }
 
 var (
-	buildVersion string
-	buildDate    string
-	buildCommit  string
+	buildVersion = "N/A"
+	buildDate    = "N/A"
+	buildCommit  = "N/A"
 )
 
-func init() {
-	if buildVersion == "" {
-		buildVersion = "N/A"
-	}
-
-	if buildDate == "" {
-		buildDate = "N/A"
-	}
-
-	if buildCommit == "" {
-		buildCommit = "N/A"
-	}
-
+func buildInfo() {
 	log.Printf("Version: %s\n", buildVersion)
 	log.Printf("Date: %s\n", buildDate)
 	log.Printf("Commit: %s\n", buildCommit)
@@ -64,7 +53,7 @@ func main() {
 	restore := flag.Bool("r", defaultRestore, "restore")
 	dataBaseDsn := flag.String("d", "", "database dsn")
 	hashKey := flag.String("k", "", "hash key")
-
+	cryptoKey := flag.String("c", "", "crypto key")
 	flag.Parse()
 
 	if defaultParams.Addr != "" {
@@ -107,6 +96,10 @@ func main() {
 		return port
 	}()
 
+	if defaultParams.CryptoKey != "" {
+		cryptoKey = &defaultParams.CryptoKey
+	}
+
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
 		if !flag.Parsed() {
@@ -124,6 +117,8 @@ func main() {
 		}
 	}()
 
+	buildInfo()
+
 	if err := run(&config{
 		port:          portService,
 		storeInterval: *storeInterval,
@@ -132,6 +127,7 @@ func main() {
 		logger:        *logger.Sugar(),
 		databaseDsn:   *dataBaseDsn,
 		hashKey:       *hashKey,
+		cryptoKey:     *cryptoKey,
 	}); err != nil {
 		logger.Fatal("can't run server", zap.Error(err))
 	}

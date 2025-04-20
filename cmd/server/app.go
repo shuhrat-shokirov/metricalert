@@ -21,6 +21,7 @@ type config struct {
 	fileStorePath string
 	databaseDsn   string
 	hashKey       string
+	cryptoKey     string
 	port          int64
 	storeInterval int
 	restore       bool
@@ -57,10 +58,11 @@ func run(conf *config) error {
 	newApplication := application.NewApplication(newStore)
 
 	api := rest.NewServerAPI(rest.Config{
-		Server:  newApplication,
-		Port:    conf.port,
-		Logger:  conf.logger,
-		HashKey: conf.hashKey,
+		Server:    newApplication,
+		Port:      conf.port,
+		Logger:    conf.logger,
+		HashKey:   conf.hashKey,
+		CryptoKey: conf.cryptoKey,
 	})
 
 	stop := make(chan os.Signal, 1)

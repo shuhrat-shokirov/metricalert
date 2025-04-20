@@ -14,6 +14,7 @@ type configParams struct {
 	ReportInterval int64  `env:"REPORT_INTERVAL"`
 	PollInterval   int64  `env:"POLL_INTERVAL"`
 	RateLimit      int64  `env:"RATE_LIMIT"`
+	CryptoKey      string `env:"CRYPTO_KEY"`
 }
 
 var (
@@ -47,6 +48,7 @@ func main() {
 	poll := flag.Int64("p", defaultPollInterval, "poll interval")
 	hashKey := flag.String("k", "", "hash key")
 	rateLimit := flag.Int64("l", 0, "rate limit")
+	cryptoKey := flag.String("c", "", "crypto key")
 	flag.Parse()
 
 	if defaultParams.Addr != "" {
@@ -74,6 +76,10 @@ func main() {
 		*rateLimit = defaultRateLimit
 	}
 
+	if defaultParams.CryptoKey != "" {
+		cryptoKey = &defaultParams.CryptoKey
+	}
+
 	// Проверка на неизвестные флаги
 	flag.VisitAll(func(f *flag.Flag) {
 		if !flag.Parsed() {
@@ -89,5 +95,6 @@ func main() {
 		pollInterval:   time.Duration(*poll) * time.Second,
 		hashKey:        *hashKey,
 		rateLimit:      *rateLimit,
+		cryptoKey:      *cryptoKey,
 	})
 }

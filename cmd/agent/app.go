@@ -11,13 +11,16 @@ import (
 type config struct {
 	addr           string
 	hashKey        string
+	cryptoKey      string
 	reportInterval time.Duration
 	pollInterval   time.Duration
 	rateLimit      int64
 }
 
 func run(conf config) {
-	newClient := client.NewClient(conf.addr, conf.hashKey)
+	newClient := client.NewClient(conf.addr,
+		conf.hashKey,
+		conf.cryptoKey)
 	collector := services.NewCollector()
 
 	agent := application.NewApplication(newClient, collector)
