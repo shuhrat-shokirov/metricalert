@@ -168,15 +168,13 @@ func main() {
 
 	buildInfo()
 
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancelFunc := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer cancelFunc()
 
 	go func() {
-		sig := <-signalChan
+		sig := <-ctx.Done()
 		log.Printf("Received signal: %s", sig)
-		cancel()
+		cancelFunc()
 	}()
 
 	stop := make(chan struct{})
