@@ -133,15 +133,6 @@ func main() {
 
 	buildInfo()
 
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-	defer cancel()
-
-	go func() {
-		s := <-ctx.Done()
-		log.Printf("Received signal: %s", s)
-		cancel()
-	}()
-
 	reportInterval, err := time.ParseDuration(agentConfig.ReportInterval)
 	if err != nil {
 		log.Fatalf("can't parse report interval: %v", err)
@@ -155,6 +146,15 @@ func main() {
 	if agentConfig.RateLimit == 0 {
 		agentConfig.RateLimit = 1
 	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	defer cancel()
+
+	go func() {
+		s := <-ctx.Done()
+		log.Printf("Received signal: %s", s)
+		cancel()
+	}()
 
 	run(ctx, &config{
 		addr:           agentConfig.Addr,
