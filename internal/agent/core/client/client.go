@@ -5,13 +5,19 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	"go.uber.org/zap"
@@ -24,8 +30,9 @@ type Client interface {
 }
 
 type handler struct {
-	addr    string
-	hashKey string
+	publicKey *rsa.PublicKey
+	addr      string
+	hashKey   string
 }
 
 type metrics struct {
@@ -35,11 +42,46 @@ type metrics struct {
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
 }
 
-func NewClient(addr, hashKey string) Client {
-	return &handler{
+func NewClient(addr, hashKey, cryptoKey string) Client {
+	h := &handler{
 		addr:    addr,
 		hashKey: hashKey,
 	}
+
+	if cryptoKey != "" {
+		pubKey, err := loadPublicKey(cryptoKey)
+		if err != nil {
+			zap.L().Fatal("can't load public key", zap.Error(err))
+		}
+
+		h.publicKey = pubKey
+	}
+
+	return h
+}
+
+func loadPublicKey(path string) (*rsa.PublicKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("can't read public key: %w", err)
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, errors.New("ошибка декодирования PEM")
+	}
+
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга публичного ключа: %w", err)
+	}
+
+	publicKey, ok := pub.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("ключ не является RSA публичным ключом")
+	}
+
+	return publicKey, nil
 }
 
 func (c *handler) SendMetrics(list []model.Metric) error {
@@ -73,6 +115,15 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 	byteData, err := compress(request)
 	if err != nil {
 		return fmt.Errorf("failed to compress data: %w", err)
+	}
+
+	if c.publicKey != nil {
+		encrypted, err := c.rsaEncrypt(byteData)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt data: %w", err)
+		}
+
+		byteData = encrypted
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(byteData))
@@ -117,6 +168,20 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 	}
 
 	return nil
+}
+
+// Получаем данные и шифрируем их по публику.
+func (c *handler) rsaEncrypt(data []byte) ([]byte, error) {
+	newData := make([]byte, base64.StdEncoding.EncodedLen(len(data)))
+
+	base64.StdEncoding.Encode(newData, data)
+
+	encryptPKCS1v15, err := rsa.EncryptPKCS1v15(rand.Reader, c.publicKey, newData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt data: %w", err)
+	}
+
+	return encryptPKCS1v15, nil
 }
 
 func retry(operation func() error) error {

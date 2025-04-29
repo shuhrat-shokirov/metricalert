@@ -48,7 +48,7 @@ func NewStore(conf *Config) (*Store, error) {
 		Store:  memory.NewStore(conf.MemoryStore),
 		file:   file,
 		mu:     &sync.Mutex{},
-		ticker: time.NewTicker(time.Duration(conf.StoreInterval) * time.Second),
+		ticker: time.NewTicker(conf.StoreInterval),
 	}
 
 	if len(bytes) == 0 {
@@ -68,13 +68,10 @@ func NewStore(conf *Config) (*Store, error) {
 }
 
 func (s *Store) Sync(ctx context.Context) {
-	for {
-		select {
-		case <-s.ticker.C:
-			err := s.saveToFile(ctx)
-			if err != nil {
-				fmt.Println(err)
-			}
+	for range s.ticker.C {
+		err := s.saveToFile(ctx)
+		if err != nil {
+			fmt.Println(err)
 		}
 	}
 }

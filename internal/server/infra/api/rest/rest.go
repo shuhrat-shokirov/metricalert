@@ -4,17 +4,24 @@
 package rest
 
 import (
+	"bytes"
 	"compress/gzip"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"html/template"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -44,10 +51,11 @@ type API struct {
 
 // Config структура конфигурации сервера.
 type Config struct {
-	Server  ServerService
-	Logger  zap.SugaredLogger
-	HashKey string
-	Port    int64
+	Server    ServerService
+	Logger    zap.SugaredLogger
+	HashKey   string
+	CryptoKey string
+	Port      int64
 }
 
 // NewServerAPI создает новый сервер.
@@ -58,12 +66,22 @@ func NewServerAPI(conf Config) *API {
 		hashKey: conf.HashKey,
 	}
 
+	if conf.CryptoKey != "" {
+		private, err := loadPrivateKey(conf.CryptoKey)
+		if err != nil {
+			h.logger.Error("can't load public key", zap.Error(err))
+		}
+
+		h.privateKey = private
+	}
+
 	router := gin.New()
 
 	pprof.Register(router)
 
 	router.Use(gin.Recovery())
 	router.Use(h.mwLog())
+	router.Use(h.mwEncrypt())
 	router.Use(h.mwDecompress())
 	router.Use(h.responseGzipMiddleware())
 	router.Use(h.encryptionMiddleware())
@@ -92,6 +110,65 @@ func NewServerAPI(conf Config) *API {
 	}
 }
 
+// loadPrivateKey загружает закрытый ключ из файла.
+func loadPrivateKey(path string) (*rsa.PrivateKey, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("can't read private key: %w", err)
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, errors.New("ошибка декодирования PEM")
+	}
+
+	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга закрытого ключа: %w", err)
+	}
+
+	return key, nil
+}
+
+// mwEncrypt middleware для шифрования данных с помощью RSA.
+func (h *handler) mwEncrypt() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.privateKey == nil {
+			c.Next()
+			return
+		}
+
+		// парсим данные из тела запроса
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			h.logger.Errorf("failed to read request body: %v", err)
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// достаем данные из шифра через приватный ключ
+		data, err := rsa.DecryptPKCS1v15(rand.Reader, h.privateKey, body)
+		if err != nil {
+			h.logger.Errorf("failed to decrypt data: %v", err)
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		decodeBytes, err := base64.StdEncoding.DecodeString(string(data))
+		if err != nil {
+			h.logger.Errorf("failed to decode data: %v", err)
+			c.Writer.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// записываем зашифрованные данные в тело запроса
+		c.Request.Body = io.NopCloser(bytes.NewReader(decodeBytes))
+
+		c.Next()
+	}
+}
+
+// mwDecompress middleware для распаковки gzip-сжатых данных.
 func (h *handler) mwDecompress() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		const gzipScheme = "gzip"
@@ -124,6 +201,7 @@ func (h *handler) mwDecompress() gin.HandlerFunc {
 	}
 }
 
+// mwLog middleware для логирования запросов.
 func (h *handler) mwLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		now := time.Now()
@@ -140,18 +218,29 @@ func (h *handler) mwLog() gin.HandlerFunc {
 	}
 }
 
+// Run запускает сервер.
 func (a *API) Run() error {
-	if err := a.srv.ListenAndServe(); err != nil {
-		return fmt.Errorf("can't start server: %w", err)
+	if err := a.srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+// Shutdown завершает работу сервера.
+func (a *API) Shutdown(ctx context.Context) error {
+	if err := a.srv.Shutdown(ctx); err != nil {
+		return fmt.Errorf("failed to shutdown server: %w", err)
 	}
 
 	return nil
 }
 
 type handler struct {
-	server  ServerService
-	logger  zap.SugaredLogger
-	hashKey string
+	server     ServerService
+	logger     zap.SugaredLogger
+	privateKey *rsa.PrivateKey
+	hashKey    string
 }
 
 func (h *handler) update(ginCtx *gin.Context) {
@@ -387,6 +476,7 @@ const metricsTemplate = `
 </html>
 `
 
+// responseGzipMiddleware middleware для сжатия ответа в gzip.
 func (h *handler) responseGzipMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Проверяем, поддерживает ли клиент gzip

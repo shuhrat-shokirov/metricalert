@@ -2,9 +2,7 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"os/signal"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -21,20 +19,26 @@ type config struct {
 	fileStorePath string
 	databaseDsn   string
 	hashKey       string
+	cryptoKey     string
+	storeInterval string
 	port          int64
-	storeInterval int
 	restore       bool
 }
 
-func run(conf *config) error {
+func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 	var (
 		newStore store.Store
 		err      error
 		dbConfig *db.Config
 	)
 
+	storeInterval, err := time.ParseDuration(conf.storeInterval)
+	if err != nil {
+		conf.logger.Fatalf("failed to parse store interval: %v", err)
+	}
+
 	fileConfig := &file.Config{
-		StoreInterval: conf.storeInterval,
+		StoreInterval: storeInterval,
 		Restore:       conf.restore,
 		FilePath:      conf.fileStorePath,
 		MemoryStore:   &memory.Config{},
@@ -51,41 +55,40 @@ func run(conf *config) error {
 		DB:   dbConfig,
 	})
 	if err != nil {
-		return fmt.Errorf("can't create store: %w", err)
+		conf.logger.Fatalf("failed to create store: %v", err)
 	}
 
 	newApplication := application.NewApplication(newStore)
 
 	api := rest.NewServerAPI(rest.Config{
-		Server:  newApplication,
-		Port:    conf.port,
-		Logger:  conf.logger,
-		HashKey: conf.hashKey,
+		Server:    newApplication,
+		Port:      conf.port,
+		Logger:    conf.logger,
+		HashKey:   conf.hashKey,
+		CryptoKey: conf.cryptoKey,
 	})
-
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
-
-	ctx, cancel := context.WithCancel(context.TODO())
-
-	go func() {
-		<-stop
-		if err := newStore.Close(); err != nil {
-			conf.logger.Errorf("can't close store: %v", err)
-		}
-
-		cancel()
-
-		os.Exit(0)
-	}()
 
 	go func() {
 		newStore.Sync(ctx)
 	}()
 
-	if err := api.Run(); err != nil {
-		return fmt.Errorf("can't start server: %w", err)
-	}
+	go func() {
+		<-ctx.Done()
+		if err := api.Shutdown(context.Background()); err != nil {
+			conf.logger.Errorw("can't shutdown server", "error", err)
+		}
 
-	return nil
+		conf.logger.Info("server shutdown")
+
+		if err := newStore.Close(); err != nil {
+			conf.logger.Errorw("can't close store", "error", err)
+		}
+		conf.logger.Info("store closed")
+
+		stop <- struct{}{}
+	}()
+
+	if err := api.Run(); err != nil {
+		conf.logger.Fatalw("failed to run server", "error", err)
+	}
 }
