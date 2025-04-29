@@ -110,6 +110,14 @@ func loadAgentConfig() (*configParams, error) {
 		config.CryptoKey = envCryptoKey
 	}
 
+	if _, err := strconv.Atoi(config.ReportInterval); err == nil {
+		config.ReportInterval += "s"
+	}
+
+	if _, err := strconv.Atoi(config.PollInterval); err == nil {
+		config.PollInterval += "s"
+	}
+
 	return config, nil
 }
 
