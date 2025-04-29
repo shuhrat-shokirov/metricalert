@@ -35,8 +35,8 @@ var (
 func loadServerConfig() (*configParams, error) {
 	// Флаги
 	const (
-		defaultStoreInterval = "5s"
-		defaultAddr          = ":8080"
+		defaultStoreInterval = "300s"
+		defaultAddr          = "localhost:8080"
 		defaultFileStorePath = "store.json"
 	)
 	configPath := flag.String("c", "", "Path to configuration file")
