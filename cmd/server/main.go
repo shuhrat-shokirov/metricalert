@@ -124,6 +124,10 @@ func loadServerConfig() (*configParams, error) {
 		config.CryptoKey = envCryptoKey
 	}
 
+	if _, err := strconv.Atoi(config.StoreInterval); err == nil {
+		config.StoreInterval += "s"
+	}
+
 	portService := func() int64 {
 		split := strings.Split(config.Addr, ":")
 		const splitLen = 2
