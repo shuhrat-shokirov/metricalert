@@ -72,31 +72,41 @@ func loadAgentConfig() (*configParams, error) {
 
 	if *serverAddr != "" {
 		config.Addr = *serverAddr
-	} else if envAddress != "" {
+	}
+
+	if envAddress != "" {
 		config.Addr = envAddress
 	}
 
 	if *report != "" {
 		config.ReportInterval = *report
-	} else if envReportInterval != "" {
+	}
+
+	if envReportInterval != "" {
 		config.ReportInterval = envReportInterval
 	}
 
 	if *poll != "" {
 		config.PollInterval = *poll
-	} else if envPollInterval != "" {
+	}
+
+	if envPollInterval != "" {
 		config.PollInterval = envPollInterval
 	}
 
 	if *hashKey != "" {
 		config.HashKey = *hashKey
-	} else if envHashKey != "" {
+	}
+
+	if envHashKey != "" {
 		config.HashKey = envHashKey
 	}
 
 	if *rateLimit != 0 {
 		config.RateLimit = *rateLimit
-	} else if envRateLimit != "" {
+	}
+
+	if envRateLimit != "" {
 		var err error
 		config.RateLimit, err = strconv.ParseInt(envRateLimit, 10, 64)
 		if err != nil {
@@ -106,7 +116,9 @@ func loadAgentConfig() (*configParams, error) {
 
 	if *cryptoKey != "" {
 		config.CryptoKey = *cryptoKey
-	} else if envCryptoKey != "" {
+	}
+
+	if envCryptoKey != "" {
 		config.CryptoKey = envCryptoKey
 	}
 
