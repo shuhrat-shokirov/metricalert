@@ -84,43 +84,57 @@ func loadServerConfig() (*configParams, error) {
 
 	if *address != "" {
 		config.Addr = *address
-	} else if envAddress != "" {
+	}
+
+	if envAddress != "" {
 		config.Addr = envAddress
 	}
 
 	if *restore {
 		config.Restore = *restore
-	} else if envRestore == "true" {
+	}
+
+	if envRestore == "true" {
 		config.Restore = true
 	}
 
 	if *storeInterval != "" {
 		config.StoreInterval = *storeInterval
-	} else if envStoreInterval != "" {
+	}
+
+	if envStoreInterval != "" {
 		config.StoreInterval = envStoreInterval
 	}
 
 	if *fileStorePath != "" {
 		config.FileStorePath = *fileStorePath
-	} else if envFileStorePath != "" {
+	}
+
+	if envFileStorePath != "" {
 		config.FileStorePath = envFileStorePath
 	}
 
 	if *databaseDsn != "" {
 		config.DatabaseDsn = *databaseDsn
-	} else if envDatabaseDsn != "" {
+	}
+
+	if envDatabaseDsn != "" {
 		config.DatabaseDsn = envDatabaseDsn
 	}
 
 	if *hashKey != "" {
 		config.HashKey = *hashKey
-	} else if envHashKey != "" {
+	}
+
+	if envHashKey != "" {
 		config.HashKey = envHashKey
 	}
 
 	if *cryptoKey != "" {
 		config.CryptoKey = *cryptoKey
-	} else if envCryptoKey != "" {
+	}
+
+	if envCryptoKey != "" {
 		config.CryptoKey = envCryptoKey
 	}
 
