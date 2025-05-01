@@ -3,9 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
@@ -167,6 +169,11 @@ func main() {
 		agentConfig.RateLimit = 1
 	}
 
+	ipAddress, err := getLocalIP()
+	if err != nil {
+		log.Fatalf("failed to get local IP address: %v", err)
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer cancel()
 
@@ -183,7 +190,45 @@ func main() {
 		hashKey:        agentConfig.HashKey,
 		rateLimit:      agentConfig.RateLimit,
 		cryptoKey:      agentConfig.CryptoKey,
+		ipAddress:      ipAddress,
 	})
 
 	log.Println("Stopping agent...")
+}
+
+func getLocalIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", fmt.Errorf("ошибка получения интерфейсов: %w", err)
+	}
+
+	for _, iface := range interfaces {
+		// Пропускаем неактивные интерфейсы или интерфейсы без флагов
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			return "", fmt.Errorf("ошибка получения адресов интерфейса: %w", err)
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			// Проверяем, что это IPv4-адрес
+			if ip != nil && ip.To4() != nil {
+				return ip.String(), nil
+			}
+		}
+	}
+
+	return "", errors.New("не удалось найти локальный IP-адрес")
 }

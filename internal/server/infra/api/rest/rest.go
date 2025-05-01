@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -51,19 +52,21 @@ type API struct {
 
 // Config структура конфигурации сервера.
 type Config struct {
-	Server    ServerService
-	Logger    zap.SugaredLogger
-	HashKey   string
-	CryptoKey string
-	Port      int64
+	Server        ServerService
+	Logger        zap.SugaredLogger
+	HashKey       string
+	CryptoKey     string
+	TrustedSubnet string
+	Port          int64
 }
 
 // NewServerAPI создает новый сервер.
-func NewServerAPI(conf Config) *API {
+func NewServerAPI(conf *Config) *API {
 	h := handler{
-		server:  conf.Server,
-		logger:  conf.Logger,
-		hashKey: conf.HashKey,
+		server:        conf.Server,
+		logger:        conf.Logger,
+		hashKey:       conf.HashKey,
+		trustedSubnet: conf.TrustedSubnet,
 	}
 
 	if conf.CryptoKey != "" {
@@ -83,6 +86,7 @@ func NewServerAPI(conf Config) *API {
 	router.Use(h.mwLog())
 	router.Use(h.mwEncrypt())
 	router.Use(h.mwDecompress())
+	router.Use(h.mwIPFilter())
 	router.Use(h.responseGzipMiddleware())
 	router.Use(h.encryptionMiddleware())
 
@@ -168,6 +172,48 @@ func (h *handler) mwEncrypt() gin.HandlerFunc {
 	}
 }
 
+// nwIpFilter middleware для фильтрации IP-адресов.
+func (h *handler) mwIPFilter() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if h.trustedSubnet == "" {
+			c.Next()
+			return
+		}
+
+		realIP := c.GetHeader("X-Real-IP")
+		if realIP == "" {
+			h.logger.Warnf("X-Real-IP header not found")
+			c.Writer.WriteHeader(http.StatusForbidden)
+			c.Abort()
+		}
+
+		ip := net.ParseIP(realIP)
+		if ip == nil {
+			h.logger.Warnf("failed to parse IP address: %s", realIP)
+			c.Writer.WriteHeader(http.StatusForbidden)
+			c.Abort()
+			return
+		}
+
+		_, subnet, err := net.ParseCIDR(h.trustedSubnet)
+		if err != nil {
+			h.logger.Errorf("failed to parse trusted subnet: %v", err)
+			c.Writer.WriteHeader(http.StatusInternalServerError)
+			c.Abort()
+			return
+		}
+
+		if !subnet.Contains(ip) {
+			h.logger.Warnf("IP address %s is not in trusted subnet %s", realIP, h.trustedSubnet)
+			c.Writer.WriteHeader(http.StatusForbidden)
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
 // mwDecompress middleware для распаковки gzip-сжатых данных.
 func (h *handler) mwDecompress() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -237,10 +283,11 @@ func (a *API) Shutdown(ctx context.Context) error {
 }
 
 type handler struct {
-	server     ServerService
-	logger     zap.SugaredLogger
-	privateKey *rsa.PrivateKey
-	hashKey    string
+	server        ServerService
+	logger        zap.SugaredLogger
+	privateKey    *rsa.PrivateKey
+	hashKey       string
+	trustedSubnet string
 }
 
 func (h *handler) update(ginCtx *gin.Context) {

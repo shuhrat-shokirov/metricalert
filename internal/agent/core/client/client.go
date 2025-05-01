@@ -26,7 +26,7 @@ import (
 )
 
 type Client interface {
-	SendMetrics(metrics []model.Metric) error
+	SendMetrics(metrics []model.Metric, ip string) error
 }
 
 type handler struct {
@@ -84,7 +84,7 @@ func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	return publicKey, nil
 }
 
-func (c *handler) SendMetrics(list []model.Metric) error {
+func (c *handler) SendMetrics(list []model.Metric, ipAddress string) error {
 	url := fmt.Sprintf("http://%s/updates/", c.addr)
 
 	request := make([]metrics, 0, len(list))
@@ -133,6 +133,7 @@ func (c *handler) SendMetrics(list []model.Metric) error {
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("X-Real-IP", ipAddress)
 
 	if c.hashKey != "" {
 		req.Header.Set("HashSHA256", hashRequest(byteData, c.hashKey))

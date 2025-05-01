@@ -13,6 +13,7 @@ type config struct {
 	addr           string
 	hashKey        string
 	cryptoKey      string
+	ipAddress      string
 	reportInterval time.Duration
 	pollInterval   time.Duration
 	rateLimit      int64
@@ -24,7 +25,7 @@ func run(ctx context.Context, conf *config) {
 		conf.cryptoKey)
 	collector := services.NewCollector()
 
-	agent := application.NewApplication(newClient, collector)
+	agent := application.NewApplication(newClient, collector, conf.ipAddress)
 
 	agent.Start(ctx, application.Config{
 		PoolInterval:   conf.pollInterval,

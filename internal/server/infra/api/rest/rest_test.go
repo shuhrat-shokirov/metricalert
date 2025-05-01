@@ -54,7 +54,7 @@ func TestNewServerAPI(t *testing.T) {
 	mockServerService := new(MockServerService)
 	logger := zap.NewNop().Sugar()
 
-	conf := Config{
+	conf := &Config{
 		Server:  mockServerService,
 		Logger:  *logger,
 		HashKey: "test-hash-key",
@@ -972,7 +972,7 @@ func TestServerAPI_Ping(t *testing.T) {
 
 func TestServerAPI_Running(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		api := NewServerAPI(Config{
+		api := NewServerAPI(&Config{
 			Server:  new(MockServerService),
 			Logger:  *zap.NewNop().Sugar(),
 			HashKey: "test-hash-key",

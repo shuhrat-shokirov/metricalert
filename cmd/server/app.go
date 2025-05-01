@@ -21,6 +21,7 @@ type config struct {
 	hashKey       string
 	cryptoKey     string
 	storeInterval string
+	trustedSubnet string
 	port          int64
 	restore       bool
 }
@@ -60,12 +61,13 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 
 	newApplication := application.NewApplication(newStore)
 
-	api := rest.NewServerAPI(rest.Config{
-		Server:    newApplication,
-		Port:      conf.port,
-		Logger:    conf.logger,
-		HashKey:   conf.hashKey,
-		CryptoKey: conf.cryptoKey,
+	api := rest.NewServerAPI(&rest.Config{
+		Server:        newApplication,
+		Port:          conf.port,
+		Logger:        conf.logger,
+		HashKey:       conf.hashKey,
+		CryptoKey:     conf.cryptoKey,
+		TrustedSubnet: conf.trustedSubnet,
 	})
 
 	go func() {
