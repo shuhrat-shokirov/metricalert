@@ -23,6 +23,7 @@ type configParams struct {
 	CryptoKey     string `json:"crypto_key"`
 	StoreInterval string `json:"store_interval"`
 	TrustedSubnet string `json:"trusted_subnet"`
+	GrpcURL       string `json:"grpc_url"`
 	Restore       bool   `json:"restore"`
 	port          int64
 }
@@ -219,6 +220,7 @@ func main() {
 		hashKey:       serverConfig.HashKey,
 		cryptoKey:     serverConfig.CryptoKey,
 		trustedSubnet: serverConfig.TrustedSubnet,
+		grpcURL:       serverConfig.GrpcURL,
 	}, stop)
 
 	<-stop

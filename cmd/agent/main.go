@@ -21,6 +21,7 @@ type configParams struct {
 	CryptoKey      string `json:"crypto_key"`
 	ReportInterval string `json:"report_interval"`
 	PollInterval   string `json:"poll_interval"`
+	GrpcURL        string `json:"grpc_url"`
 	RateLimit      int64  `json:"-"`
 }
 
@@ -191,6 +192,7 @@ func main() {
 		rateLimit:      agentConfig.RateLimit,
 		cryptoKey:      agentConfig.CryptoKey,
 		ipAddress:      ipAddress,
+		grpcURL:        agentConfig.GrpcURL,
 	})
 
 	log.Println("Stopping agent...")

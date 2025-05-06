@@ -26,7 +26,7 @@ import (
 )
 
 type Client interface {
-	SendMetrics(metrics []model.Metric, ip string) error
+	SendMetrics(ctx context.Context, metrics []model.Metric, ip string) error
 }
 
 type handler struct {
@@ -84,7 +84,7 @@ func loadPublicKey(path string) (*rsa.PublicKey, error) {
 	return publicKey, nil
 }
 
-func (c *handler) SendMetrics(list []model.Metric, ipAddress string) error {
+func (c *handler) SendMetrics(_ context.Context, list []model.Metric, ipAddress string) error {
 	url := fmt.Sprintf("http://%s/updates/", c.addr)
 
 	request := make([]metrics, 0, len(list))
@@ -142,8 +142,10 @@ func (c *handler) SendMetrics(list []model.Metric, ipAddress string) error {
 	const timeout = 5 * time.Second
 
 	var (
-		client = &http.Client{Timeout: timeout}
-		resp   *http.Response
+		client = &http.Client{
+			Timeout: timeout,
+		}
+		resp *http.Response
 	)
 
 	err = retry(func() error {

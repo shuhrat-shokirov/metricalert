@@ -11,7 +11,7 @@ import (
 )
 
 type Client interface {
-	SendMetrics(metrics []model.Metric, ipAddress string) error
+	SendMetrics(ctx context.Context, metrics []model.Metric, ipAddress string) error
 }
 
 type Collector interface {
@@ -109,7 +109,7 @@ func (a *Agent) worker(ctx context.Context, wg *sync.WaitGroup, metricsChan <-ch
 				return
 			}
 
-			if err := a.client.SendMetrics(metrics, a.ipAddress); err != nil {
+			if err := a.client.SendMetrics(context.Background(), metrics, a.ipAddress); err != nil {
 				zap.L().Error("can't send metrics", zap.Error(err))
 				continue
 			}

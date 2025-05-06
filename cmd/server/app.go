@@ -8,6 +8,7 @@ import (
 
 	"metricalert/internal/server/core/application"
 	"metricalert/internal/server/infra/api/rest"
+	"metricalert/internal/server/infra/grpc"
 	"metricalert/internal/server/infra/store"
 	"metricalert/internal/server/infra/store/db"
 	"metricalert/internal/server/infra/store/file"
@@ -22,6 +23,7 @@ type config struct {
 	cryptoKey     string
 	storeInterval string
 	trustedSubnet string
+	grpcURL       string
 	port          int64
 	restore       bool
 }
@@ -61,6 +63,24 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 
 	newApplication := application.NewApplication(newStore)
 
+	go func() {
+		newStore.Sync(ctx)
+	}()
+
+	go func() {
+		<-ctx.Done()
+		if err := newStore.Close(); err != nil {
+			conf.logger.Errorw("can't close store", "error", err)
+		}
+		conf.logger.Info("store closed")
+	}()
+
+	if conf.grpcURL != "" {
+		if err := grpc.StartGRPCServer(newApplication, conf.grpcURL); err != nil {
+			conf.logger.Fatalf("failed to start grpc server: %v", err)
+		}
+	}
+
 	api := rest.NewServerAPI(&rest.Config{
 		Server:        newApplication,
 		Port:          conf.port,
@@ -71,21 +91,12 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 	})
 
 	go func() {
-		newStore.Sync(ctx)
-	}()
-
-	go func() {
 		<-ctx.Done()
 		if err := api.Shutdown(context.Background()); err != nil {
 			conf.logger.Errorw("can't shutdown server", "error", err)
 		}
 
 		conf.logger.Info("server shutdown")
-
-		if err := newStore.Close(); err != nil {
-			conf.logger.Errorw("can't close store", "error", err)
-		}
-		conf.logger.Info("store closed")
 
 		stop <- struct{}{}
 	}()
