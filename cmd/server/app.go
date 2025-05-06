@@ -67,18 +67,22 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 		newStore.Sync(ctx)
 	}()
 
-	go func() {
-		<-ctx.Done()
-		if err := newStore.Close(); err != nil {
-			conf.logger.Errorw("can't close store", "error", err)
-		}
-		conf.logger.Info("store closed")
-	}()
-
 	if conf.grpcURL != "" {
+		go func() {
+			<-ctx.Done()
+			if err := newStore.Close(); err != nil {
+				conf.logger.Errorw("can't close store", "error", err)
+			}
+			conf.logger.Info("store closed")
+
+			stop <- struct{}{}
+		}()
+
 		if err := grpc.StartGRPCServer(newApplication, conf.grpcURL); err != nil {
 			conf.logger.Fatalf("failed to start grpc server: %v", err)
 		}
+
+		return
 	}
 
 	api := rest.NewServerAPI(&rest.Config{
@@ -95,6 +99,11 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 		if err := api.Shutdown(context.Background()); err != nil {
 			conf.logger.Errorw("can't shutdown server", "error", err)
 		}
+
+		if err := newStore.Close(); err != nil {
+			conf.logger.Errorw("can't close store", "error", err)
+		}
+		conf.logger.Info("store closed")
 
 		conf.logger.Info("server shutdown")
 
