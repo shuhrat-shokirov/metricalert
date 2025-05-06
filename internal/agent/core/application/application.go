@@ -11,7 +11,7 @@ import (
 )
 
 type Client interface {
-	SendMetrics(metrics []model.Metric) error
+	SendMetrics(ctx context.Context, metrics []model.Metric, ipAddress string) error
 }
 
 type Collector interface {
@@ -21,17 +21,19 @@ type Collector interface {
 }
 
 type Agent struct {
+	ipAddress     string
 	client        Client
 	collector     Collector
 	memoryMutex   *sync.Mutex
 	memoryMetrics []model.Metric
 }
 
-func NewApplication(client Client, collector Collector) *Agent {
+func NewApplication(client Client, collector Collector, ipAddress string) *Agent {
 	return &Agent{
 		client:      client,
 		collector:   collector,
 		memoryMutex: &sync.Mutex{},
+		ipAddress:   ipAddress,
 	}
 }
 
@@ -107,7 +109,7 @@ func (a *Agent) worker(ctx context.Context, wg *sync.WaitGroup, metricsChan <-ch
 				return
 			}
 
-			if err := a.client.SendMetrics(metrics); err != nil {
+			if err := a.client.SendMetrics(context.Background(), metrics, a.ipAddress); err != nil {
 				zap.L().Error("can't send metrics", zap.Error(err))
 				continue
 			}

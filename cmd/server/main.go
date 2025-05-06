@@ -22,6 +22,8 @@ type configParams struct {
 	HashKey       string `json:"-"`
 	CryptoKey     string `json:"crypto_key"`
 	StoreInterval string `json:"store_interval"`
+	TrustedSubnet string `json:"trusted_subnet"`
+	GrpcURL       string `json:"grpc_url"`
 	Restore       bool   `json:"restore"`
 	port          int64
 }
@@ -47,6 +49,7 @@ func loadServerConfig() (*configParams, error) {
 	databaseDsn := flag.String("d", "", "Database dsn")
 	hashKey := flag.String("k", "", "Hash key")
 	cryptoKey := flag.String("s", "", "Crypto key")
+	trustedSubnet := flag.String("t", "", "Trusted subnet")
 	flag.Parse()
 
 	// Переменные окружения
@@ -58,6 +61,7 @@ func loadServerConfig() (*configParams, error) {
 	envDatabaseDsn := os.Getenv("DATABASE_DSN")
 	envHashKey := os.Getenv("KEY")
 	envCryptoKey := os.Getenv("CRYPTO_KEY")
+	envTrustedSubnet := os.Getenv("TRUSTED_SUBNET")
 
 	// Проверка наличия конфигурационного файла
 	var config = &configParams{}
@@ -157,7 +161,16 @@ func loadServerConfig() (*configParams, error) {
 
 		return port
 	}()
+
 	config.port = portService
+
+	if *trustedSubnet != "" {
+		config.TrustedSubnet = *trustedSubnet
+	}
+
+	if envTrustedSubnet != "" {
+		config.TrustedSubnet = envTrustedSubnet
+	}
 
 	return config, nil
 }
@@ -206,6 +219,8 @@ func main() {
 		databaseDsn:   serverConfig.DatabaseDsn,
 		hashKey:       serverConfig.HashKey,
 		cryptoKey:     serverConfig.CryptoKey,
+		trustedSubnet: serverConfig.TrustedSubnet,
+		grpcURL:       serverConfig.GrpcURL,
 	}, stop)
 
 	<-stop
