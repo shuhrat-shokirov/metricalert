@@ -71,7 +71,7 @@ func run(ctx context.Context, conf *config, stop chan<- struct{}) {
 		go func() {
 			<-ctx.Done()
 			if err := newStore.Close(); err != nil {
-				conf.logger.Errorw("can't close store", "error", err)
+				conf.logger.Error("can't close store", err)
 			}
 			conf.logger.Info("store closed")
 
